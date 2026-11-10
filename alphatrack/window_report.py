@@ -241,7 +241,7 @@ def render_window_report(runs, output, *, as_of, effective_end):
     <th scope="col">回测区间</th><th scope="col">回测日期</th><th scope="col">累计投入（元）</th><th scope="col">累计盈亏（元）</th>
     <th scope="col">XIRR 年化</th><th scope="col">TWR 年化</th><th scope="col">最大净值回撤</th><th scope="col">完整报告</th>
     </tr></thead><tbody>{''.join(overview_rows)}</tbody></table></div><p class="scroll-hint">可左右滑动查看全部指标，左侧区间名称保持固定。</p></section>
-    <div class="notice">“过去 N 年”按日期锚点倒推整年；固定起点区间从标明的日期开始。共同截止日受实际净值覆盖限制。各区间是独立回测，不能把不同区间的利润相加。</div>
+    <div class="notice">各区间从标明的日期开始，共同截止日受实际净值覆盖限制。各区间是独立回测，不能把不同区间的利润相加。</div>
     <section><h2>每个自然年的盈亏</h2><p>“—”表示不在该区间内；0.00 才表示该年盈亏为零。首尾不足一整年的单元格注明具体范围，未作全年外推。</p>
     <div class="table-wrap"><table id="annual-matrix"><thead><tr><th>自然年 / 盈亏（元）</th>{table_head}</tr></thead>
     <tbody>{''.join(body)}</tbody><tfoot><tr><th>各区间累计盈亏</th>{totals}</tr></tfoot></table></div>
