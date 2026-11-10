@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 from .portfolio_report import _fmt, _json, _layout
 
 
-COLORS = ["#42dbc5", "#8da9ff", "#f4c875", "#c2a3f4", "#f7a17d"]
+COLORS = ["#42dbc5", "#8da9ff", "#f4c875", "#c2a3f4", "#f7a17d", "#e58cba"]
 
 
 def _period(start, end, year):
@@ -219,7 +219,7 @@ def render_window_report(runs, output, *, as_of, effective_end):
     main{{max-width:1440px;margin:auto;padding:28px}}h1{{font-size:30px;line-height:1.35;margin:8px 0 16px}}h2{{font-size:21px;margin:0 0 8px}}
     .eyebrow{{color:#84d6cb;letter-spacing:3px;font-size:11px}}.muted,p,small{{color:var(--muted)}}p{{margin:8px 0 18px}}a{{color:#8adbd0;text-decoration:none}}a:hover{{text-decoration:underline}}
     .badges{{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px}}.badge{{padding:4px 10px;background:#192b3d;border:1px solid var(--border);border-radius:5px;font-size:12px}}
-    .cards{{display:grid;grid-template-columns:repeat({len(windows)},minmax(0,1fr));gap:14px}}.card,section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}}
+    .cards{{display:grid;grid-template-columns:repeat({3 if len(windows)>=6 else len(windows)},minmax(0,1fr));gap:14px}}.card,section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}}
     .card{{border-top:3px solid var(--accent)}}.card strong{{display:block;font-size:25px;line-height:1.4;margin:12px 0 4px}}.card-label{{color:var(--accent);font-weight:650}}.card p,.card a,.card .muted{{font-size:12px}}
     section{{margin-top:24px;min-width:0}}.table-wrap{{overflow-x:auto;margin:16px 0 8px}}table{{border-collapse:collapse;width:100%;min-width:650px;font-variant-numeric:tabular-nums}}
     th,td{{padding:13px 16px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}}th:first-child{{text-align:left}}thead th{{font-size:13px;background:#182a3d}}tbody th{{font-weight:550}}td small{{display:block;font-size:10px}}

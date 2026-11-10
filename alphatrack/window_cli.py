@@ -11,13 +11,23 @@ from .portfolio_cli import run_config, write_json
 from .strategies.qlab import QLabRules
 
 
-DEFAULT_FIXED_START = '2016-01-01'
+DEFAULT_FIXED_STARTS = ('2016-01-01', '2010-01-01')
 
 
-def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10), fixed_start=DEFAULT_FIXED_START):
+def normalize_fixed_starts(fixed_start):
+    """Accept the original single-date API as well as multiple fixed starts."""
+    values = [] if fixed_start is None else [fixed_start] if isinstance(fixed_start, str) else list(fixed_start)
+    starts = [date.fromisoformat(value).isoformat() for value in values]
+    if len(starts) != len(set(starts)):
+        raise ValueError('Fixed starts must be unique')
+    return starts
+
+
+def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10), fixed_start=DEFAULT_FIXED_STARTS):
     """Anchor starts to the requested date; cap all ends at common NAV coverage."""
     anchor = pd.Timestamp(date.fromisoformat(as_of))
-    if (not years and fixed_start is None) or any(type(year) is not int or year <= 0 for year in years):
+    fixed_starts = normalize_fixed_starts(fixed_start)
+    if (not years and not fixed_starts) or any(type(year) is not int or year <= 0 for year in years):
         raise ValueError('Window years must be positive integers')
     if len(set(years)) != len(years):
         raise ValueError('Window years must be unique')
@@ -38,18 +48,17 @@ def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10), fixed_start=DEFAULT
             raise ValueError(f'No data in the {year}-year window')
         windows.append({'window_id':f'{year}y', 'kind':'trailing', 'years':year, 'label':f'过去 {year} 年',
                         'start':str(start.date()), 'end':str(effective_end.date())})
-    if fixed_start is not None:
-        start = pd.Timestamp(date.fromisoformat(fixed_start))
+    for fixed_date in fixed_starts:
+        start = pd.Timestamp(fixed_date)
         if start > effective_end:
             raise ValueError('Fixed start exceeds the available end date')
-        fixed_date = str(start.date())
         windows.append({'window_id':'since_'+fixed_date.replace('-',''), 'kind':'fixed', 'years':None,
                         'label':f'{fixed_date} 至今', 'start':fixed_date, 'end':str(effective_end.date())})
     return windows
 
 
 def run_windows(config_path, *, as_of, years=(1, 3, 5, 10),
-                fixed_start=DEFAULT_FIXED_START, output='reports/qlab_portfolio_windows.html', render_only=False):
+                fixed_start=DEFAULT_FIXED_STARTS, output='reports/qlab_portfolio_windows.html', render_only=False):
     config_path, output = Path(config_path).resolve(), Path(output).resolve()
     windows = plan_windows(config_path, as_of=as_of, years=years, fixed_start=fixed_start)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -82,7 +91,7 @@ def run_windows(config_path, *, as_of, years=(1, 3, 5, 10),
             output.with_suffix('.annual_matrix.csv'), float_format='%.12g')
     effective_end = windows[0]['end']
     write_json(output.with_suffix('.summary.json'), {
-        'as_of':as_of, 'effective_end':effective_end, 'fixed_start':fixed_start,
+        'as_of':as_of, 'effective_end':effective_end, 'fixed_starts':normalize_fixed_starts(fixed_start),
         'method':'Each window starts empty; earlier history warms indicators only. No inherited positions.',
         'windows':window_payloads})
     from .window_report import render_window_report
@@ -98,10 +107,11 @@ def main(argv=None):
                         help='YYYY-MM-DD anchor, defaults to today in Asia/Shanghai')
     parser.add_argument('--years', nargs='+', type=int, default=[1, 3, 5, 10])
     fixed = parser.add_mutually_exclusive_group()
-    fixed.add_argument('--fixed-start', help='Fixed calendar start, defaults to 2016-01-01')
-    fixed.add_argument('--no-fixed-start', action='store_const', const=None, dest='fixed_start',
-                       help='Explicitly omit the fixed-start comparison')
-    parser.set_defaults(fixed_start=DEFAULT_FIXED_START)
+    fixed.add_argument('--fixed-start', '--fixed-starts', nargs='+',
+                       help='Fixed calendar starts, defaults to 2016-01-01 and 2010-01-01')
+    fixed.add_argument('--no-fixed-start', '--no-fixed-starts', action='store_const', const=None, dest='fixed_start',
+                       help='Explicitly omit all fixed-start comparisons')
+    parser.set_defaults(fixed_start=list(DEFAULT_FIXED_STARTS))
     parser.add_argument('--output', default='reports/qlab_portfolio_windows.html')
     parser.add_argument('--render-only', action='store_true', help='Rebuild comparison from matching existing window exports')
     args = parser.parse_args(argv)
