@@ -57,6 +57,20 @@ def render_window_report(runs, output, *, as_of, effective_end):
     ordered = list(runs)
     if not ordered:
         raise ValueError("Windows must be nonempty")
+    def selection_policy(run):
+        payload = run['payload']
+        policy = payload.get('metadata', {}).get('strategy', payload.get('config', {}).get('strategy', {}))
+        return policy.get('selection_mode', 'ranked'), policy.get('random_seed')
+    mode, seed = selection_policy(ordered[0])
+    if any(selection_policy(run) != (mode, seed) for run in ordered):
+        raise ValueError('All comparison windows must use the same selection policy and random seed')
+    random_selection = mode == 'random'
+    strategy_name = f'AlphaStep · 随机选基版（seed={seed}）' if random_selection else 'AlphaStep · 原排名版'
+    strategy_description = ('Fundb 每日随机选8只、Fundc 每日随机选5只，其余买卖规则沿用原策略。'
+                            if random_selection else 'Fundb/Fundc 按原综合评分排名选前8/5只，其他类别按原规则执行。')
+    diagram = output.parent / 'alphastep_random_strategy.html'
+    diagram_link = (f'<div class="actions"><a href="{_relative_link(diagram,output.parent)}">查看策略二流程图 ↗</a></div>'
+                    if random_selection and diagram.exists() else '')
 
     windows, annual_records, summary_records = [], [], []
     seen_ids = set()
@@ -202,6 +216,9 @@ def render_window_report(runs, output, *, as_of, effective_end):
     for label, key, kind in metrics:
         cells = ''.join(f'<td>{_fmt(w["summary"].get(key),kind)}</td>' for w in windows)
         metric_rows.append(f'<tr><th>{label}</th>{cells}</tr>')
+    footer_metrics = ''.join(f'<tr><th>{label}</th>' + ''.join(
+        f'<td>{_fmt(w["summary"].get(key),kind)}</td>' for w in windows) + '</tr>'
+        for label,key,kind in metrics if key in {'xirr','cagr','max_drawdown','sharpe','annual_volatility'})
 
     annual_csv = output.with_suffix(".annual.csv")
     summary_csv = output.with_suffix(".summary.csv")
@@ -214,8 +231,13 @@ def render_window_report(runs, output, *, as_of, effective_end):
     无限资金按规则追加、卖出净回款取出；Fundb/Fundc/Fundf_1/Fundg 只有买入规则，Fundd 按原规则买卖。
     零手续费、下一条可用净值成交；未还原历史限购、暂停申赎、确认与到账延迟和 QDII 实际净值公布时刻，属于理论回测。
     使用当前基金名单回放历史，存在名单选择偏差；已知净值断档和分红缺失沿用原报告的处理，并在各区间完整报告披露。'''
+    if random_selection:
+        notes += (f'\n随机版固定种子{seed}，按日期和类别确定抽样；沿用原as-of评分有效候选池，'
+                  '不放回抽取，不足8/5只则全选。仅为当日有新净值的入选基金下单，无新净值不递补，实际下单数可能少于8/5。'
+                  '相同日期在不同窗口选择一致，只有Fundb/Fundc选基顺序改变。'
+                  '\n这是一个固定种子的随机路径，不代表多次随机试验的平均表现。')
     document = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1"><title>不同起点的基金组合回测 | AlphaTrack</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(strategy_name)} · 不同起点回测 | AlphaTrack</title>
     <style>
     :root{{color-scheme:dark;--bg:#0b1723;--panel:#132335;--border:#2a3c51;--text:#edf5fa;--muted:#9bb0c7}}
     *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}
@@ -233,9 +255,10 @@ def render_window_report(runs, output, *, as_of, effective_end):
     </style></head><body><header><b>α</b> AlphaTrack</header><main>
     <div class="eyebrow">INDEPENDENT STARTS / CALENDAR YEAR EARNINGS</div>
     <h1>从不同时间开始，每年能赚多少？</h1>
-    <p>同一套 QLab 五类基金规则，比较 {html.escape('、'.join(w['label'] for w in windows))}。先看逐年模拟盈亏，再看投入规模和风险。</p>
+    <p><strong>{html.escape(strategy_name)}</strong> · {html.escape(strategy_description)} 比较 {html.escape('、'.join(w['label'] for w in windows))}。</p>
     <div class="badges"><span class="badge">日期锚点 {anchor.date()}</span><span class="badge">共同净值截止 {end.date()}</span>
     <span class="badge">各区间独立空仓开始</span><span class="badge">无限资金 · 卖出款取出</span><span class="badge">金额单位：人民币元</span></div>
+    {diagram_link}
     <section><h2>回测区间总览</h2><p>每行对应一个独立回测区间。金额单位为元，累计盈亏包含未实现浮盈亏；年化收益分别列出 XIRR 与 TWR。</p>
     <div class="table-wrap" tabindex="0" role="region" aria-label="回测区间总览，可横向滚动"><table id="window-summary"><thead><tr>
     <th scope="col">回测区间</th><th scope="col">回测日期</th><th scope="col">累计投入（元）</th><th scope="col">累计盈亏（元）</th>
@@ -244,7 +267,7 @@ def render_window_report(runs, output, *, as_of, effective_end):
     <div class="notice">各区间从标明的日期开始，共同截止日受实际净值覆盖限制。各区间是独立回测，不能把不同区间的利润相加。</div>
     <section><h2>每个自然年的盈亏</h2><p>“—”表示不在该区间内；0.00 才表示该年盈亏为零。首尾不足一整年的单元格注明具体范围，未作全年外推。</p>
     <div class="table-wrap"><table id="annual-matrix"><thead><tr><th>自然年 / 盈亏（元）</th>{table_head}</tr></thead>
-    <tbody>{''.join(body)}</tbody><tfoot><tr><th>各区间累计盈亏</th>{totals}</tr></tfoot></table></div>
+    <tbody>{''.join(body)}</tbody><tfoot><tr><th>各区间累计盈亏</th>{totals}</tr>{footer_metrics}</tfoot></table></div>
     <div class="actions"><a href="{_relative_link(annual_csv,output.parent)}" download>下载逐年完整明细 CSV</a><a href="{_relative_link(summary_csv,output.parent)}" download>下载区间指标 CSV</a></div>
     {year_plot}</section>
     <section><h2>投入、回款与收益率一起看</h2><p>相同规则在不同起点会形成不同持仓。XIRR 计入资金投入、取出的金额和时间；TWR 净值年化剔除外部资金流的直接影响。</p>

@@ -189,7 +189,22 @@ class QLabRules:
         return {row["code"]: (i, float(row["score"]))
                 for i, row in enumerate(scores.to_dict("records"), 1)}
 
-    def build_signals(self, frames, assets=None, *, start="2010-01-01", end=None):
+    @staticmethod
+    def random_snapshot(rankings, *, asset_type, date, random_seed):
+        """Permute the original eligible as-of peer pool without replacement.
+
+        An independently keyed digest for each date/type/code makes the order
+        reproducible across loop order, backtest starts, and Python versions.
+        Stale peers keep their original eligibility; only the existing fresh
+        NAV loop below may emit orders, exactly as in ranked mode.
+        """
+        salt = f"alphatrack-daily-random-v1|{random_seed}|{asset_type}|{pd.Timestamp(date).date()}|"
+        ordered = sorted(rankings, key=lambda code: (
+            hashlib.sha256((salt + str(code)).encode("utf-8")).digest(), str(code)))
+        return {code: (rank, rankings[code][1]) for rank, code in enumerate(ordered, 1)}
+
+    def build_signals(self, frames, assets=None, *, start="2010-01-01", end=None,
+                      selection_mode="ranked", random_seed=42):
         """Return per-type/fund frames and reproducibility metadata.
 
         History before ``start`` warms indicators and peer rankings only. The
@@ -197,7 +212,16 @@ class QLabRules:
         Latest peer data are carried forward for ranking, never backwards.
         A stale fund can influence the peer ranking but never gets a duplicate
         order on a day without a new NAV row.
+        Random mode changes only the order of the original eligible Fundb/c
+        pool; original buy counts, amounts, and fresh-NAV order gating remain.
         """
+        if selection_mode not in {"ranked", "random"}:
+            raise ValueError("selection_mode must be ranked or random")
+        if random_seed is not None and type(random_seed) is not int:
+            raise ValueError("random_seed must be an integer, not bool")
+        if selection_mode == "random" and random_seed is None:
+            raise ValueError("random selection requires an integer random_seed")
+        random_seed = random_seed if selection_mode == "random" else None
         assets = self.catalog() if assets is None else list(assets)
         if len({asset_key(asset) for asset in assets}) != len(assets):
             raise ValueError("Duplicate strategy/fund entry")
@@ -232,6 +256,10 @@ class QLabRules:
                 continue
             active_rank_types = {asset["asset_type"] for asset, _, _ in fresh} & {"Fundb", "Fundc"}
             rankings = {kind: self.rank_snapshot(by_type[kind], latest) for kind in active_rank_types}
+            if selection_mode == "random":
+                rankings = {kind: self.random_snapshot(ranking, asset_type=kind, date=date,
+                                                       random_seed=random_seed)
+                            for kind, ranking in rankings.items()}
             for asset, index, row in fresh:
                 key, kind = asset_key(asset), asset["asset_type"]
                 rank, score = rankings.get(kind, {}).get(asset["code"], (None, None))
@@ -241,6 +269,14 @@ class QLabRules:
                 values = dict(action=decision.action, amount=decision.amount,
                               fraction=float(Fraction(decision.fraction)) if decision.fraction else np.nan,
                               rank=decision.rank, score=decision.score, reason=decision.reason)
+                if selection_mode == "random" and kind in {"Fundb", "Fundc"}:
+                    target = getattr(self.configs[kind], f"{kind.lower()}_top_n")
+                    pool_size = len(rankings[kind])
+                    status = ("收益或评分数据不足，未进入原候选池" if rank is None else
+                              "入选" if decision.action == "BUY" else "未入选，本次不买入")
+                    values["reason"] = (f"每日随机抽样 seed={random_seed}；原候选池 {pool_size} 只，"
+                                        f"随机序号 {rank if rank is not None else '—'} / 选取 {target} 只；"
+                                        f"{status}；仍仅在新净值日发单，陈旧候选可占名额")
                 for column, value in values.items():
                     prepared[key].at[index, column] = np.nan if value is None else value
                 counts[decision.action] += 1
@@ -250,6 +286,11 @@ class QLabRules:
             "types": list(dict.fromkeys(asset["asset_type"] for asset in assets)),
             "assets": assets, "signal_counts": counts,
             "configurations": {kind: self.configs[kind].to_dict() for kind in by_type if by_type[kind]},
+            "selection_mode": selection_mode,
+            "random_seed": random_seed,
+            "selection_algorithm": ("sha256-per-date-type-code-v1" if selection_mode == "random"
+                                    else "original-qlab-score-ranking"),
+            "selection_pool": "original eligible as-of peer pool, including stale peers; original fresh-NAV emission gate retained",
             "ranking": "latest known NAV per peer; emit only at each fund's fresh NAV; all 1/2/3/5y return inputs finite using target-date-or-earlier NAV; continuity not required by source; returns rounded to four decimals",
             "universe": "current enabled QLab catalog replayed historically; not historical point-in-time membership",
             "signal_start": "empty Fundd sell state at requested start; earlier history warms indicators only",

@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "funds": 63,
+  "groups": 5,
+  "annual_rows": 7,
+  "observations": 1661,
+  "component_rows": 101032,
+  "filled_trades": 32750,
+  "pending_end_signals": 21,
+  "rejected_no_holding": 92,
+  "weekend_theoretical_fills": 81,
+  "max_component_equity_error": 5.298526957631111e-06,
+  "xirr_npv_residual_yuan": 4.400499165058136e-08,
+  "profit_reconciliations": {
+    "daily_profit": 279024.83905499504,
+    "annual_profit": 279024.83905455,
+    "fund_profit": 279024.8390547342,
+    "group_profit": 279024.83905454003,
+    "fifo_profit": 279024.8390546866,
+    "cashflow_profit": 279024.8390546909
+  }
+}

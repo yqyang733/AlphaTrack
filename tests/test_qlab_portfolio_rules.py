@@ -153,3 +153,118 @@ def test_missing_execution_observation_fails_instead_of_misaligning(rules):
     adapter = QLabSignalStrategy(prepared[asset_key(item)])
     with pytest.raises(ValueError, match="observations"):
         adapter.prepare(frame.iloc[1:])
+
+
+def random_inputs(monkeypatch, rules, *, counts=None):
+    """Small precomputed features isolate selection from indicator arithmetic."""
+    dates = pd.bdate_range("2026-01-05", periods=4)
+    assets, frames = [], {}
+    for kind, count in (counts or {"Fundb": 12, "Fundc": 7}).items():
+        for number in range(count):
+            code = f"{kind}-{number:02d}"
+            item = asset(code, kind)
+            assets.append(item)
+            frame = pd.DataFrame({"date": dates, "nav": 1. + number / 100,
+                                  "mean_reversion_score": (number + 1) ** 2 / 100})
+            for years in (1, 2, 3, 5):
+                frame[f"近{years}年"] = (number + 1) / (100 * years)
+            frames[code] = frame
+    monkeypatch.setattr(rules, "prepare_features", lambda frame, kind: frame.copy().reset_index(drop=True))
+    return dates, assets, frames
+
+
+def test_random_selection_is_reproducible_daily_without_replacement_and_changes_with_seed(rules, monkeypatch):
+    dates, assets, frames = random_inputs(monkeypatch, rules)
+    first, meta = rules.build_signals(frames, assets, start=dates[0], selection_mode="random", random_seed=42)
+    replay, _ = rules.build_signals(frames, list(reversed(assets)), start=dates[0],
+                                   selection_mode="random", random_seed=42)
+    other, _ = rules.build_signals(frames, assets, start=dates[0], selection_mode="random", random_seed=43)
+    late, _ = rules.build_signals(frames, assets, start=dates[2], selection_mode="random", random_seed=42)
+    default, default_meta = rules.build_signals(frames, assets, start=dates[0])
+    ranked, _ = rules.build_signals(frames, assets, start=dates[0], selection_mode="ranked", random_seed=None)
+    for key in first:
+        pd.testing.assert_frame_equal(first[key], replay[key])
+        pd.testing.assert_frame_equal(first[key].loc[first[key].date >= dates[2]].reset_index(drop=True),
+                                      late[key].loc[late[key].date >= dates[2]].reset_index(drop=True))
+        pd.testing.assert_frame_equal(default[key], ranked[key])
+        pd.testing.assert_series_equal(first[key].score, default[key].score)
+    assert any(not first[key].action.equals(other[key].action) for key in first)
+    chosen_by_day = []
+    for date in dates:
+        daily_chosen = set()
+        for kind, target in [("Fundb", 8), ("Fundc", 5)]:
+            candidates = [first[asset_key(item)].loc[lambda df: df.date == date].iloc[0]
+                          for item in assets if item["asset_type"] == kind]
+            assert sorted(row["rank"] for row in candidates) == list(range(1, len(candidates) + 1))
+            chosen = [row for row in candidates if row.action == "BUY"]
+            assert len(chosen) == target
+            assert all(row.amount == 40 for row in chosen)
+            assert all("每日随机抽样" in row.reason for row in candidates)
+            daily_chosen.update(asset_key(item) for item in assets if item["asset_type"] == kind
+                                and first[asset_key(item)].loc[lambda df: df.date == date].iloc[0].action == "BUY")
+        chosen_by_day.append(frozenset(daily_chosen))
+    assert len(set(chosen_by_day)) > 1
+    assert meta["selection_mode"] == "random" and meta["random_seed"] == 42
+    assert meta["selection_algorithm"] == "sha256-per-date-type-code-v1"
+    assert "stale" in meta["selection_pool"]
+    assert default_meta["selection_mode"] == "ranked" and default_meta["random_seed"] is None
+
+
+def test_random_pool_retains_original_validity_and_stale_peer_rules(rules, monkeypatch):
+    dates, assets, frames = random_inputs(monkeypatch, rules, counts={"Fundb": 4, "Fundc": 7})
+    # Three valid Fundb candidates cannot be padded to eight with invalid data.
+    frames["Fundb-03"]["近5年"] = np.nan
+    # A stale Fundc peer may still occupy a selected place, exactly as it can
+    # under the original ranking. It must never get a duplicate order.
+    latest = {asset_key(item): frames[item["code"]].iloc[-1] for item in assets}
+    candidates = rules.rank_snapshot([item for item in assets if item["asset_type"] == "Fundc"], latest)
+    order = rules.random_snapshot(candidates, asset_type="Fundc", date=dates[-1], random_seed=42)
+    stale_code = next(code for code, (rank, _) in order.items() if rank == 1)
+    frames[stale_code] = frames[stale_code].iloc[:-1].copy()
+    signals, _ = rules.build_signals(frames, assets, start=dates[0], selection_mode="random", random_seed=42)
+    assert signals["Fundb:Fundb-03"].action.eq("HOLD").all()
+    assert signals["Fundb:Fundb-03"]["rank"].isna().all()
+    for date in dates:
+        buys = [item for item in assets if item["asset_type"] == "Fundb"
+                and signals[asset_key(item)].loc[lambda df: df.date == date].iloc[0].action == "BUY"]
+        assert len(buys) == 3
+    assert dates[-1] not in set(signals[f"Fundc:{stale_code}"].date)
+    fresh = [signals[asset_key(item)].loc[lambda df: df.date == dates[-1]] for item in assets
+             if item["asset_type"] == "Fundc"]
+    assert sum(frame.action.eq("BUY").sum() for frame in fresh) == 4
+
+
+def test_random_mode_preserves_all_non_target_signals_and_execution(rules, monkeypatch):
+    dates, assets, frames = random_inputs(monkeypatch, rules)
+    for code, kind, category in [("broad", "Fundd", "基金>宽基指数"),
+                                 ("sector", "Fundd", "基金>行业指数"),
+                                 ("lowvol", "Fundf_1", "基金>红利低波基金"),
+                                 ("overseas", "Fundg", "基金>美股")]:
+        assets.append(asset(code, kind, category))
+        frame = pd.DataFrame({"date": dates, "nav": [1., 1.1, 1.2, .95],
+                              "total_return_index": [1., 1.1, 1.2, .95],
+                              "dividend": 0., "split": 1.,
+                              "近1年百分位": [.1, .4, .8, .05],
+                              "近5年百分位": [.1, .6, .9, .05],
+                              "近10年百分位": [.1, .6, .9, .05],
+                              "成立以来百分位": [.1, .6, .9, .05]})
+        frames[code] = frame
+    ranked, _ = rules.build_signals(frames, assets, start=dates[0])
+    random, _ = rules.build_signals(frames, assets, start=dates[0], selection_mode="random", random_seed=42)
+    for item in assets:
+        if item["asset_type"] in {"Fundb", "Fundc"}:
+            continue
+        key = asset_key(item)
+        pd.testing.assert_frame_equal(random[key], ranked[key])
+        config = EngineConfig(initial_cash=0, withdraw_on_sell=True)
+        expected = run_backtest(ranked[key], QLabSignalStrategy(ranked[key]), config)
+        actual = run_backtest(random[key], QLabSignalStrategy(random[key]), config)
+        for left, right in zip(actual, expected):
+            pd.testing.assert_frame_equal(left, right)
+
+
+@pytest.mark.parametrize("mode,seed", [("other", 42), ("random", None), ("random", True),
+                                      ("random", 1.5), ("random", "42")])
+def test_random_selection_rejects_invalid_mode_or_seed(rules, mode, seed):
+    with pytest.raises(ValueError):
+        rules.build_signals({}, [], selection_mode=mode, random_seed=seed)

@@ -37,11 +37,32 @@ def write_json(path, value):
     Path(path).write_text(json.dumps(_json_clean(value),ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8')
 
 
+def strategy_settings(conf):
+    """Keep selection policy explicit and separate from execution settings."""
+    selection=conf.get('strategy', {})
+    if not isinstance(selection, dict):
+        raise ValueError('strategy must be an object')
+    unknown=set(selection)-{'selection_mode','random_seed'}
+    if unknown:
+        raise ValueError(f'Unknown strategy settings: {sorted(unknown)}')
+    mode=selection.get('selection_mode','ranked')
+    if mode not in {'ranked','random'}:
+        raise ValueError('selection_mode must be ranked or random')
+    seed=selection.get('random_seed',42 if mode=='random' else None)
+    if mode=='random' and type(seed) is not int:
+        raise ValueError('random_seed must be an integer')
+    if mode=='ranked' and seed is not None:
+        raise ValueError('random_seed is only used in random selection mode')
+    return {'selection_mode':mode,'random_seed':seed}
+
+
 def run_config(config_path, *, start=None, end=None, output=None, signal_cache=None, title=None):
     config_path=Path(config_path).resolve()
     conf=json.loads(config_path.read_text())
-    unknown=set(conf)-{'title','source','data_dir','types','engine','output'}
+    unknown=set(conf)-{'title','source','data_dir','types','engine','output','strategy','window_output'}
     if unknown: raise ValueError(f'Unknown portfolio configuration: {sorted(unknown)}')
+    selection=strategy_settings(conf)
+    conf['strategy']=selection
     if title is not None: conf['title']=title
     source=(config_path.parent/conf['source']).resolve()
     data_dir=(config_path.parent/conf['data_dir']).resolve()
@@ -77,14 +98,16 @@ def run_config(config_path, *, start=None, end=None, output=None, signal_cache=N
         expected_adapter=hashlib.sha256(Path(qlab.__file__).read_bytes()).hexdigest()
         if (cm.get('data_hashes')!=data_hashes or cm.get('source_hashes')!=rules.source_hashes
                 or cm.get('adapter_sha256')!=expected_adapter or cm.get('start')!=cfg.start
-                or cm.get('end')!=cfg.end):
-            raise ValueError('Signal cache does not match inputs/source/interval')
+                or cm.get('end')!=cfg.end
+                or cm.get('selection_mode','ranked')!=selection['selection_mode']
+                or cm.get('random_seed')!=selection['random_seed']):
+            raise ValueError('Signal cache does not match inputs/source/interval/selection policy')
         # Explicit local cache only; never deserialize remote downloads.
         with cache.open('rb') as f:signals=pickle.load(f)
         signal_metadata=cm
     if signals is None:
-        print(f'Preparing exact QLab signals: {len(assets)} funds',flush=True)
-        signals,signal_metadata=rules.build_signals(frames,assets,start=cfg.start,end=cfg.end)
+        print(f'Preparing QLab signals ({selection["selection_mode"]}): {len(assets)} funds',flush=True)
+        signals,signal_metadata=rules.build_signals(frames,assets,start=cfg.start,end=cfg.end,**selection)
     if set(signals)!={asset_key(a) for a in assets}:raise ValueError('Signal universe mismatch')
     ledgers,trades_by_fund={},{}
     fund_summaries, all_lots, fund_annual=[],[],[]
@@ -136,11 +159,16 @@ def run_config(config_path, *, start=None, end=None, output=None, signal_cache=N
         'title':conf['title'],'source_url':provenance['repository'],'source_commit':provenance['commit'],
         'qlab_commit':provenance['commit'],'fund_count':len(assets),'types':conf['types'],
         'start_date':cfg.start,'end_date':cfg.end,'coverage':coverage,'data_hashes':data_hashes,
+        'strategy':selection,
         'signal_metadata':{**signal_metadata,'source_path':conf['source']},'missing_corporate_action_nav':missing,
         'assumptions':[
             '使用当前QLab启用名单回溯，不代表2010年已知的基金池；存在名单选择/幸存者偏差。',
             f'{cfg.start}起空仓；更早历史只预热指标。成立较晚基金不提前交易；债券排名需1/2/3/5年收益均可计算，但源码不验证净值历史连续性。',
-            '每个新增净值观察日按QLab生成信号，下一可用净值成交；末日信号不虚构成交。',
+            ('Fundb/Fundc 每个新净值观察日，在原as-of评分有效候选中不放回随机选8/5只；不足则全选。'
+             f'固定种子{selection["random_seed"]}，按类别和日期确定随机顺序，重叠日期跨回测起点一致。其余规则不变。'
+             '仍只为当日有新净值的入选基金下单，无新净值不递补，实际下单数可能少于8/5。'
+             if selection['selection_mode']=='random' else 'Fundb/Fundc 按原QLab综合评分排名选前8/5只。'),
+            '每个新增净值观察日生成信号，下一可用净值成交；末日信号不虚构成交。',
             '买入按各类原金额，无资金上限；卖出净回款立即取出。只有Fundd有卖出规则，不添加年末清仓。',
             'QLab分红与拆分记录逐条使用，现金分红按除息日净值再投资；000931两条缺净值事件沿用QLab已有遗漏并单独披露。',
             '000037净值从2013-06-20直接跳至2020-04-22（2498天断档）；沿用QLab原数据和目标日前最近净值算法，未补造历史，可能影响其历史评分与买入。',

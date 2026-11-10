@@ -63,6 +63,36 @@ python -m alphatrack.window_cli --years 1 3 5 10 --no-fixed-start
 
 汇总附件：`.annual.csv` 为四组逐年完整明细，`.annual_matrix.csv` 为年×窗口盈亏矩阵，`.summary.csv` 为区间指标，`.summary.json` 保存日期和各组结果，`fixed_starts` 记录实际起点，`fixed_start_policy` 记录默认起始年和五年步长。CSV以 `window_id/window_label/window_kind` 区分窗口，固定起点的 `window_years` 留空。四份 `_since_20100101/_since_20150101/_since_20200101/_since_20250101` 报告各有完整账本、交易、FIFO和验证JSON；可通过 `python scripts/verify_portfolio.py --report reports/qlab_portfolio_windows_since_20100101.html` 等逐个核对。2010窗口在源码版本、数据哈希、配置和起止日期一致后复用已验证账本；其他三个窗口独立重算。此前的滚动窗口及2016年起的报告保留为历史快照，不再纳入默认汇总。
 
+## 策略二：AlphaStep 随机选基版
+
+只把 Fundb / Fundc 的原评分排序替换为每日随机顺序，分别选8 / 5只、每只40元。保留原as-of合格候选池（1/2/3/5年收益和评分有效，含沿用最近净值的候选），不放回抽取；不足名额时全选。仍只在入选基金有新净值的当天发信号，无新净值不下单、不递补，下一条可用净值成交。Fundd、Fundf_1、Fundg 的信号、交易及账本与同起点原策略逐值一致。
+
+随机种子固定为 **42**，使用种子、类别、日期、基金代码的 SHA256 排序，每日重抽；同一日期的选择不受回测起点或基金遍历顺序影响。配置在 `configs/qlab_portfolio_random.json` 的 `strategy` 中，`selection_mode` 为 `random`、`random_seed` 为整数。原配置省略此项，继续按 `ranked` 执行。
+
+```bash
+# 按默认四个固定起点分别计算，独立输出，不覆盖原排名版
+python -m alphatrack.window_cli --config configs/qlab_portfolio_random.json --as-of 2026-11-10
+# 用已完成的相同策略/种子/日期结果重新渲染
+python -m alphatrack.window_cli --config configs/qlab_portfolio_random.json --as-of 2026-11-10 --render-only
+# 导出万元表格及可直接粘贴飞书的行
+python scripts/export_window_tables.py --report reports/alphastep_random_windows.html
+# 与原排名版独立核对
+python scripts/verify_random_variant.py
+```
+
+打开 `reports/alphastep_random_windows.html` 查看四窗口逐年盈亏、累计盈亏曲线和完整指标；`reports/alphastep_random_strategy.html` / `.png` / `.svg` 是策略流程图。每个 `_since_YYYY0101` 报告带完整日账本、交易、FIFO、年度和分组明细以及 `.validation.json`。
+
+| 区间 | 累计投入（元） | 随机版盈亏（元） | 相对原排名版盈亏差（元） | XIRR |
+|---|---:|---:|---:|---:|
+| 2010年至今 | 1,969,040 | 759,312.96 | -5,075.79 | 7.67% |
+| 2015年至今 | 1,728,500 | 597,136.06 | -5,075.79 | 6.52% |
+| 2020年至今 | 1,237,600 | 279,024.84 | -1,910.85 | 6.18% |
+| 2025年至今 | 322,150 | 11,320.89 | +412.71 | 4.21% |
+
+均截止2026-11-06，盈亏含未实现浮盈亏；这是seed 42的一条随机路径，不代表多种子的平均表现。沿用原净值观察日历，包括少量周末净值。2010/2015窗口比原版各多投入40元，来自2017-12-30抽中有新净值的700005、次日净值成交；未改变日历、金额或成交规则。差异明细见 `reports/alphastep_random_windows.variant_validation.json`。
+
+复制数据：`.table_wan.md` / `.table_wan.tsv` 为“年份×区间”表，累计盈亏下方附XIRR、TWR、回撤、夏普及波动率；`.paste_all_wan.tsv` 是不含表头的四行横向数据，列顺序为累计盈亏、五项指标、2010—2026年盈亏；`.paste_2010_wan.tsv` 只保留2010年至今一行，配套 `.paste_header_wan.tsv` 为表头。金额按万元保留两位小数，原始CSV仍保留元口径。
+
 ## 单基金 Demo
 
 可复现的回测软件原型：数据 → 策略 → 下一净值日成交 → 资金/持仓账本 → 逐批匹配 → 年化收益 → 离线 Plotly HTML。
@@ -151,4 +181,4 @@ pytest -q
 
 110020的4,179条净值与QLab快照规则逐日一致：687 BUY / 61 SELL / 3,431 HOLD，位置误差0。卖出提款不会改变无限资金模式下的买卖份额。测试覆盖次净值成交、无前视、补资费用、提款、分红拆分、FIFO分摊、逐笔年化、未实现估值和账目守恒；数据及规则版本写入元信息便于复现。
 
-单基金初版45项测试、748条逐批年化独立公式核对通过，桌面和手机图表已验证。新增组合及多区间对比后全套75项测试及32项子测试通过；另用 `python scripts/verify_portfolio.py` 独立复核年度、类别、基金、FIFO及现金流利润守恒，当前四个固定区间全部通过。默认起点测试覆盖五年梯度、跨入2030年、数据截止滞后、历史锚点和自定义覆盖。63基金评分抽查20个日期、524个排名和2144个收益输入，均与QLab原函数一致。
+单基金初版45项测试、748条逐批年化独立公式核对通过，桌面和手机图表已验证。加入随机策略后全套96项测试及32项子测试通过；原排名版及随机版各四个固定区间均通过 `verify_portfolio.py` 的年度、类别、基金、FIFO及现金流核对。随机版另通过 `verify_random_variant.py` 的非目标类别全量一致、原评分资格一致、随机顺序及跨窗口一致审计。测试覆盖五年梯度、跨入2030年、数据截止滞后、历史锚点、自定义覆盖、随机种子和缓存隔离。63基金评分原有抽查20个日期、524个排名和2144个收益输入，均与QLab原函数一致。

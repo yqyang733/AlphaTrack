@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from .portfolio_cli import run_config, write_json
+from .portfolio_cli import run_config, write_json, strategy_settings
 from .strategies.qlab import QLabRules
 
 
@@ -64,8 +64,16 @@ def plan_windows(config_path, *, as_of, years=(), fixed_start=AUTO_FIXED_STARTS)
 
 
 def run_windows(config_path, *, as_of, years=(),
-                fixed_start=AUTO_FIXED_STARTS, output='reports/qlab_portfolio_windows.html', render_only=False):
-    config_path, output = Path(config_path).resolve(), Path(output).resolve()
+                fixed_start=AUTO_FIXED_STARTS, output=None, render_only=False):
+    config_path = Path(config_path).resolve()
+    config = json.loads(config_path.read_text())
+    selection = strategy_settings(config)
+    if output is None:
+        output = ((config_path.parent / config['window_output']) if config.get('window_output')
+                  else Path('reports/alphastep_random_windows.html' if selection['selection_mode']=='random'
+                            else 'reports/qlab_portfolio_windows.html'))
+    output = Path(output).resolve()
+    strategy_name = 'AlphaStep · 随机选基版' if selection['selection_mode']=='random' else 'AlphaStep · 原排名版'
     windows = plan_windows(config_path, as_of=as_of, years=years, fixed_start=fixed_start)
     output.parent.mkdir(parents=True, exist_ok=True)
     runs = []
@@ -78,10 +86,12 @@ def run_windows(config_path, *, as_of, years=(),
                 raise ValueError(f'Saved window dates differ from the current plan: {report.name}')
             if summary['beginning_assets'] != 0:
                 raise ValueError('Comparison requires independently restarted empty portfolios')
+            if strategy_settings(payload['config']) != selection:
+                raise ValueError(f'Saved window selection policy differs from requested strategy: {report.name}')
         else:
             print(f'Running {window["label"]}: {window["start"]} to {window["end"]}', flush=True)
             payload = run_config(config_path, start=window['start'], end=window['end'], output=report,
-                                 title=f'QLab 五类基金组合 · {window["label"]}独立回测')
+                                 title=f'{strategy_name} · {window["label"]}独立回测')
         runs.append({**window, 'report_path':report, 'payload':payload})
 
     annual_rows, window_payloads = [], []
@@ -98,6 +108,7 @@ def run_windows(config_path, *, as_of, years=(),
     effective_end = windows[0]['end']
     write_json(output.with_suffix('.summary.json'), {
         'as_of':as_of, 'effective_end':effective_end,
+        'strategy':selection,
         'fixed_starts':[window['start'] for window in windows if window['kind'] == 'fixed'],
         'fixed_start_policy':({'first_year':FIRST_FIXED_START_YEAR, 'step_years':FIXED_START_STEP_YEARS}
                               if fixed_start == AUTO_FIXED_STARTS else None),
@@ -122,7 +133,7 @@ def main(argv=None):
     fixed.add_argument('--no-fixed-start', '--no-fixed-starts', action='store_const', const=None, dest='fixed_start',
                        help='Explicitly omit all fixed-start comparisons')
     parser.set_defaults(fixed_start=AUTO_FIXED_STARTS)
-    parser.add_argument('--output', default='reports/qlab_portfolio_windows.html')
+    parser.add_argument('--output', help='Comparison report path; defaults to config window_output or QLab report')
     parser.add_argument('--render-only', action='store_true', help='Rebuild comparison from matching existing window exports')
     args = parser.parse_args(argv)
     run_windows(args.config, as_of=args.as_of, years=args.years, fixed_start=args.fixed_start,
