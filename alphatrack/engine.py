@@ -1,7 +1,7 @@
 """Daily event loop with next-observation fills and cash-flow-neutral NAV.
 
 Strategies see a causal prepared history, and must not inspect future rows.
-No external contribution is counted as P&L. Sell proceeds remain in cash.
+No external cash flow is counted as P&L. Sale proceeds may be withdrawn.
 """
 from dataclasses import dataclass, asdict
 import math
@@ -13,6 +13,7 @@ import pandas as pd
 class EngineConfig:
     initial_cash: float = 0.0
     funding_mode: str = "topup"
+    withdraw_on_sell: bool = False
     start: str | None = None
     end: str | None = None
     buy_fee: float = 0.0
@@ -23,6 +24,8 @@ class EngineConfig:
     def __post_init__(self):
         if self.funding_mode not in {"fixed", "topup"}:
             raise ValueError("funding_mode must be fixed or topup")
+        if type(self.withdraw_on_sell) is not bool:
+            raise ValueError("withdraw_on_sell must be boolean")
         for key in ("initial_cash", "buy_fee", "sell_fee", "risk_free_rate"):
             v = getattr(self, key)
             if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
@@ -53,13 +56,14 @@ def run_backtest(frame, strategy, config=None):
     active = active.reset_index(drop=True)
     cash, shares, cost = cfg.initial_cash, 0.0, 0.0
     contributed, realized, fees, invested = cfg.initial_cash, 0.0, 0.0, 0.0
+    withdrawn = 0.0
     prev_equity, unit, peak = cfg.initial_cash, 1.0, 1.0
     pending = None
     daily, trades = [], []
     reference = float(active.iloc[0].total_return_index)
     for index, row in active.iterrows():
         nav = float(row.nav)
-        flow, day_fee = 0.0, 0.0
+        flow, day_fee, withdrawal = 0.0, 0.0, 0.0
         # Apply corporate actions to holdings brought into this observation.
         shares *= float(row.split)
         if row.dividend and shares:
@@ -107,6 +111,10 @@ def run_backtest(frame, strategy, config=None):
                     realized += amount - fee - removed_cost
                     shares -= quantity
                     cash += amount - fee
+                    if cfg.withdraw_on_sell:
+                        withdrawal = amount - fee
+                        cash -= withdrawal
+                        withdrawn += withdrawal
             else:
                 raise ValueError(f"Unsupported action {action}")
             day_fee += fee
@@ -115,12 +123,12 @@ def run_backtest(frame, strategy, config=None):
                                amount=amount, shares=quantity, price=nav, fee=fee,
                                reason=decision["reason"], status=status))
         equity = cash + shares * nav
-        pnl = equity - prev_equity - flow
+        pnl = equity - prev_equity - flow + withdrawal
         # Link returns immediately before and after close-of-day contributions.
         # New-capital fees must not be divided only by the small old portfolio.
         market_factor = pre_flow_equity / prev_equity if prev_equity > 1e-10 else 1.0
         post_flow_base = pre_flow_equity + flow
-        trade_factor = equity / post_flow_base if post_flow_base > 1e-10 else 1.0
+        trade_factor = (equity + withdrawal) / post_flow_base if post_flow_base > 1e-10 else 1.0
         ret = market_factor * trade_factor - 1
         unit *= 1 + ret
         peak = max(peak, unit)
@@ -135,7 +143,11 @@ def run_backtest(frame, strategy, config=None):
                       realized_pnl=realized, fees=fees, invested=invested,
                       external_flow=flow + (cfg.initial_cash if index == 0 else 0),
                       net_contributions=contributed,
-                      simple_return=(equity-contributed)/contributed if contributed else 0.0)
+                      total_contributions=contributed, withdrawal=withdrawal,
+                      cumulative_withdrawals=withdrawn,
+                      net_external_contributions=contributed-withdrawn,
+                      cumulative_pnl=equity+withdrawn-contributed,
+                      simple_return=(equity+withdrawn-contributed)/contributed if contributed else 0.0)
         daily.append(record)
         prev_equity = equity
         decision = strategy.decide(row)

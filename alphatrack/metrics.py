@@ -52,11 +52,17 @@ def calculate_metrics(daily, trades, cfg):
     fills = trades[trades.status.isin(["FILLED", "PARTIAL"])]
     buys, sells = fills[fills.action=="BUY"], fills[fills.action=="SELL"]
     deposits = daily[daily.external_flow > 0]
-    irr = xirr(list(deposits.date)+[end.date], list(-deposits.external_flow)+[end.equity]) if len(deposits) else None
+    # Legacy XIRR solver assumes contributions followed by one terminal value.
+    # Withdraw-on-sale analysis uses lot annualization, not this account solver.
+    has_withdrawals = float(end.get("cumulative_withdrawals", 0)) > 0
+    irr = xirr(list(deposits.date)+[end.date], list(-deposits.external_flow)+[end.equity]) if len(deposits) and not has_withdrawals else None
     benchmark_years = (end.date-daily.iloc[0].date).days/365.25
     result = dict(initial_cash=cfg.initial_cash, funding_mode=cfg.funding_mode,
                   first_investment_date=str(start.date.date()) if len(funded) else None,
-                  final_equity=float(end.equity), total_pnl=float(end.equity-end.net_contributions),
+                  final_equity=float(end.equity), total_pnl=float(end.get("cumulative_pnl",end.equity-end.net_contributions)),
+                  cumulative_withdrawals=float(end.get("cumulative_withdrawals", 0)),
+                  account_cost_basis="average_cost",
+                  xirr_note="Not computed for sale withdrawals; use per-lot annualized returns" if has_withdrawals else "Contributions plus terminal account value; ACT/365.25",
                   total_return=float(end.unit_nav-1), simple_return=float(end.simple_return),
                   net_contributions=float(end.net_contributions), cagr=cagr, xirr=irr,
                   annual_volatility=sd*math.sqrt(scale),

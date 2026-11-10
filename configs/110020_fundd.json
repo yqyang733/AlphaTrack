@@ -1,13 +1,23 @@
 {
-  "title": "110020 · Fundd 宽基策略回测",
+  "title": "110020 · Fundd 逐批年化收益",
   "data": "../data/110020.csv",
   "output": "../reports/110020_fundd.html",
   "strategy": {
     "name": "fundd",
     "params": {
       "base_amount": 50,
-      "buy_thresholds": [20, 10, 5, 0],
-      "buy_multipliers": [1, 2, 3, 4],
+      "buy_thresholds": [
+        20,
+        10,
+        5,
+        0
+      ],
+      "buy_multipliers": [
+        1,
+        2,
+        3,
+        4
+      ],
       "sell_start": 50,
       "sell_end": 100,
       "sell_count": 50,
@@ -22,6 +32,12 @@
     "buy_fee": 0,
     "sell_fee": 0,
     "risk_free_rate": 0,
-    "periods_per_year": 252
+    "periods_per_year": 252,
+    "withdraw_on_sell": true
+  },
+  "report_mode": "lots",
+  "lot_analysis": {
+    "matching": "fifo",
+    "year_days": 365.0
   }
 }
