@@ -1,0 +1,108 @@
+{
+  "metrics": {
+    "initial_cash": 0,
+    "funding_mode": "topup",
+    "first_investment_date": "2009-09-04",
+    "final_equity": 73546.43851694737,
+    "total_pnl": 28790.531680009226,
+    "total_return": 0.4924911412591608,
+    "simple_return": 0.6432789259505675,
+    "net_contributions": 44755.90683693814,
+    "cagr": 0.02358264023482337,
+    "xirr": 0.035633897767683546,
+    "annual_volatility": 0.09847755669013196,
+    "sharpe": 0.29454452332391273,
+    "sortino": 0.4320526249179948,
+    "max_drawdown": -0.24951076320939325,
+    "calmar": 0.09451552282348821,
+    "max_drawdown_days": 1857,
+    "best_day": 0.04565456545654545,
+    "worst_day": -0.06026236676687624,
+    "positive_day_ratio": 0.508498922671774,
+    "buy_count": 687,
+    "sell_count": 61,
+    "total_fees": 0.0,
+    "total_buys": 61400.0,
+    "total_sells": 87331.39369682492,
+    "realized_pnl": 27688.54756911476,
+    "unrealized_pnl": 1101.9841108944743,
+    "holding_return": 0.6271414975504782,
+    "exposure_mean": 0.34967966887637336,
+    "benchmark_return": 0.6813,
+    "benchmark_cagr": 0.0306598512649503,
+    "pending_count": 0,
+    "rejected_count": 0,
+    "start_date": "2009-08-26",
+    "end_date": "2026-11-09",
+    "observations": 4179
+  },
+  "config": {
+    "title": "110020 · Fundd 宽基策略回测",
+    "data": "../data/110020.csv",
+    "output": "../reports/110020_fundd.html",
+    "strategy": {
+      "name": "fundd",
+      "params": {
+        "base_amount": 50,
+        "buy_thresholds": [
+          20,
+          10,
+          5,
+          0
+        ],
+        "buy_multipliers": [
+          1,
+          2,
+          3,
+          4
+        ],
+        "sell_start": 50,
+        "sell_end": 100,
+        "sell_count": 50,
+        "sell_total": "9/10"
+      }
+    },
+    "engine": {
+      "initial_cash": 0,
+      "funding_mode": "topup",
+      "start": null,
+      "end": null,
+      "buy_fee": 0,
+      "sell_fee": 0,
+      "risk_free_rate": 0,
+      "periods_per_year": 252
+    }
+  },
+  "metadata": {
+    "code": "110020",
+    "name": "易方达沪深300ETF联接A",
+    "source_url": "https://fund.eastmoney.com/pingzhongdata/110020.js",
+    "retrieved_at": "2026-11-10T07:02:41.755850+00:00",
+    "first_date": "2009-08-26",
+    "last_date": "2026-11-09",
+    "rows": 4179,
+    "source_sha256": "fae4a024709f9cfc6f37abf95f8c27822ef16948787e62792517a5ed958baba1",
+    "data_sha256": "0518887111f0e64c599dd58a72463ff2432aedbd4c974eb4adb3ac194d4e1428",
+    "corporate_actions": "No event annotations; cumulative NAV equals unit NAV for all observations",
+    "strategy_source": "https://github.com/yqyang733/QLab",
+    "strategy_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+    "limitations": [
+      "NAV observations, not a complete daily trading calendar",
+      "Early history is weekly; next observation can be more than one trading day away",
+      "No historical subscription/redemption status supplied; theoretical NAV execution"
+    ],
+    "strategy_verification": {
+      "observations": 4179,
+      "decision_mismatches": 0,
+      "max_position_error": 0.0,
+      "BUY": 687,
+      "SELL": 61,
+      "HOLD": 3431
+    },
+    "execution": "Signal on NAV date; fill at next available NAV; no terminal liquidation",
+    "settlement": "Immediate fractional shares; no fund subscription suspensions or settlement lag modelled",
+    "fees": "Configurable constant subscription/redemption rates; zero in demo, NOT historical fee schedule",
+    "funding": "Recycle sale proceeds; inject only cash shortage at purchase close",
+    "risk": "Daily means per NAV observation, 252 observations/year; early history is sparse"
+  }
+}

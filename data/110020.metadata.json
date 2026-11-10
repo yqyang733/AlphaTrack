@@ -1,0 +1,27 @@
+{
+  "code": "110020",
+  "name": "易方达沪深300ETF联接A",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/110020.js",
+  "retrieved_at": "2026-11-10T07:02:41.755850+00:00",
+  "first_date": "2009-08-26",
+  "last_date": "2026-11-09",
+  "rows": 4179,
+  "source_sha256": "fae4a024709f9cfc6f37abf95f8c27822ef16948787e62792517a5ed958baba1",
+  "data_sha256": "0518887111f0e64c599dd58a72463ff2432aedbd4c974eb4adb3ac194d4e1428",
+  "corporate_actions": "No event annotations; cumulative NAV equals unit NAV for all observations",
+  "strategy_source": "https://github.com/yqyang733/QLab",
+  "strategy_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "limitations": [
+    "NAV observations, not a complete daily trading calendar",
+    "Early history is weekly; next observation can be more than one trading day away",
+    "No historical subscription/redemption status supplied; theoretical NAV execution"
+  ],
+  "strategy_verification": {
+    "observations": 4179,
+    "decision_mismatches": 0,
+    "max_position_error": 0.0,
+    "BUY": 687,
+    "SELL": 61,
+    "HOLD": 3431
+  }
+}
