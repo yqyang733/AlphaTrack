@@ -38,7 +38,7 @@ Fundb/c 的排名要求1/2/3/5年收益输入均有效、横截面评分可计�
 
 ## 默认六区间：过去 1 / 3 / 5 / 10 年及 2016、2010 年起
 
-打开 `reports/qlab_portfolio_windows.html`，横向查看六个区间**每个自然年的盈亏金额**、累计盈亏、投入与取回、XIRR、净值年化及回撤。每个区间链接到自己的完整报告。
+打开 `reports/qlab_portfolio_windows.html`，顶部用表格展示六个区间，每个区间一行，列出起止日期、累计投入、累计盈亏、XIRR、净值年化、最大回撤及完整报告入口；窄屏支持横向滚动并固定区间名称。下方保留**每个自然年的盈亏金额**矩阵、详细指标和收益曲线。
 
 ```bash
 python -m alphatrack.window_cli --config configs/qlab_portfolio.json --as-of 2026-11-10 --output reports/qlab_portfolio_windows.html

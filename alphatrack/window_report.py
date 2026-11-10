@@ -155,17 +155,21 @@ def render_window_report(runs, output, *, as_of, effective_end):
     year_plot = yearly.to_html(full_html=False, include_plotlyjs=True, div_id="window-annual-chart", config=chart_config)
     pnl_plot = cumulative.to_html(full_html=False, include_plotlyjs=False, div_id="window-pnl-chart", config=chart_config)
 
-    cards = []
+    overview_rows = []
     for window in windows:
         summary = window["summary"]
         pnl = _number(summary.get("total_pnl"))
-        klass = "positive" if pnl is not None and pnl >= 0 else "negative"
-        cards.append(f'''<article class="card" style="--accent:{window['color']}">
-          <div class="card-label">{html.escape(window['label'])}</div>
-          <div class="muted">{'固定起点' if window['kind']=='fixed' else '向前推整年'} · 独立空仓开始</div>
-          <strong class="{klass}">{_fmt(pnl)}</strong><div class="muted">累计盈亏（含未实现）</div>
-          <p>{window['start']} → {window['end']}</p>
-          <a href="{window['report_link']}">查看这个区间的完整报告 ↗</a></article>''')
+        klass = "missing" if pnl is None else "positive" if pnl >= 0 else "negative"
+        overview_rows.append(f'''<tr>
+          <th scope="row" style="color:{window['color']}">{html.escape(window['label'])}
+            <small>{'固定起点' if window['kind']=='fixed' else '滚动区间'}</small></th>
+          <td class="period">{window['start']}<small>至 {window['end']}</small></td>
+          <td>{_fmt(summary.get('total_contributions'), 'number')}</td>
+          <td class="{klass} total">{_fmt(pnl, 'number')}</td>
+          <td>{_fmt(summary.get('xirr'), 'percent')}</td>
+          <td>{_fmt(summary.get('cagr'), 'percent')}</td>
+          <td>{_fmt(summary.get('max_drawdown'), 'percent')}</td>
+          <td><a href="{window['report_link']}" aria-label="查看{html.escape(window['label'], quote=True)}的完整报告">查看 ↗</a></td></tr>''')
 
     table_head = "".join(f'<th style="color:{w["color"]}">{html.escape(w["label"])}</th>' for w in windows)
     body = []
@@ -219,22 +223,25 @@ def render_window_report(runs, output, *, as_of, effective_end):
     main{{max-width:1440px;margin:auto;padding:28px}}h1{{font-size:30px;line-height:1.35;margin:8px 0 16px}}h2{{font-size:21px;margin:0 0 8px}}
     .eyebrow{{color:#84d6cb;letter-spacing:3px;font-size:11px}}.muted,p,small{{color:var(--muted)}}p{{margin:8px 0 18px}}a{{color:#8adbd0;text-decoration:none}}a:hover{{text-decoration:underline}}
     .badges{{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px}}.badge{{padding:4px 10px;background:#192b3d;border:1px solid var(--border);border-radius:5px;font-size:12px}}
-    .cards{{display:grid;grid-template-columns:repeat({3 if len(windows)>=6 else len(windows)},minmax(0,1fr));gap:14px}}.card,section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}}
-    .card{{border-top:3px solid var(--accent)}}.card strong{{display:block;font-size:25px;line-height:1.4;margin:12px 0 4px}}.card-label{{color:var(--accent);font-weight:650}}.card p,.card a,.card .muted{{font-size:12px}}
-    section{{margin-top:24px;min-width:0}}.table-wrap{{overflow-x:auto;margin:16px 0 8px}}table{{border-collapse:collapse;width:100%;min-width:650px;font-variant-numeric:tabular-nums}}
+    section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px;margin-top:24px;min-width:0}}.table-wrap{{overflow-x:auto;margin:16px 0 8px}}table{{border-collapse:collapse;width:100%;min-width:650px;font-variant-numeric:tabular-nums}}
     th,td{{padding:13px 16px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}}th:first-child{{text-align:left}}thead th{{font-size:13px;background:#182a3d}}tbody th{{font-weight:550}}td small{{display:block;font-size:10px}}
     .positive{{color:#79d6c7}}.negative{{color:#ff9b91}}.missing{{color:#667e96}}.total{{font-weight:750}}tfoot th,tfoot td{{background:#1b3044}}
+    #window-summary{{min-width:1050px}}#window-summary th:first-child{{position:sticky;left:0;z-index:1;background:var(--panel)}}#window-summary thead th:first-child{{background:#182a3d}}#window-summary th small{{display:block;color:var(--muted);font-size:11px;font-weight:400}}#window-summary .period{{color:var(--muted);font-size:13px}}#window-summary .period small{{font-size:12px}}#window-summary tbody tr:hover{{background:#1a2c40}}.scroll-hint{{display:none}}
     .notice{{border-left:3px solid #60bfb6;background:#102b34;padding:14px 18px;margin:22px 0;color:#c3dcdf;font-size:13px}}
     .actions{{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}}.notes{{white-space:pre-line;font-size:13px;line-height:1.9}}footer{{padding:20px 0;color:var(--muted);font-size:12px}}
-    @media(max-width:1200px){{.cards{{grid-template-columns:repeat(3,minmax(0,1fr))}}}}@media(max-width:850px){{.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}@media(max-width:600px){{main{{padding:18px 12px}}h1{{font-size:25px}}section,.card{{padding:16px 12px}}.cards{{gap:10px}}.card strong{{font-size:21px}}.card p{{font-size:10px}}}}
+    @media(max-width:1200px){{.scroll-hint{{display:block;font-size:12px;margin-bottom:0}}}}@media(max-width:600px){{main{{padding:18px 12px}}h1{{font-size:25px}}section{{padding:16px 12px}}}}
     </style></head><body><header><b>α</b> AlphaTrack</header><main>
     <div class="eyebrow">INDEPENDENT STARTS / CALENDAR YEAR EARNINGS</div>
     <h1>从不同时间开始，每年能赚多少？</h1>
     <p>同一套 QLab 五类基金规则，比较 {html.escape('、'.join(w['label'] for w in windows))}。先看逐年模拟盈亏，再看投入规模和风险。</p>
     <div class="badges"><span class="badge">日期锚点 {anchor.date()}</span><span class="badge">共同净值截止 {end.date()}</span>
     <span class="badge">各区间独立空仓开始</span><span class="badge">无限资金 · 卖出款取出</span><span class="badge">金额单位：人民币元</span></div>
-    <div class="cards">{''.join(cards)}</div>
-    <div class="notice">“过去 N 年”按日期锚点倒推整年；固定起点区间从标明的日期开始。共同截止日受实际净值覆盖限制。每一列是一次独立回测，不能把不同列的利润相加。</div>
+    <section><h2>回测区间总览</h2><p>每行对应一个独立回测区间。金额单位为元，累计盈亏包含未实现浮盈亏；年化收益分别列出 XIRR 与 TWR。</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="回测区间总览，可横向滚动"><table id="window-summary"><thead><tr>
+    <th scope="col">回测区间</th><th scope="col">回测日期</th><th scope="col">累计投入（元）</th><th scope="col">累计盈亏（元）</th>
+    <th scope="col">XIRR 年化</th><th scope="col">TWR 年化</th><th scope="col">最大净值回撤</th><th scope="col">完整报告</th>
+    </tr></thead><tbody>{''.join(overview_rows)}</tbody></table></div><p class="scroll-hint">可左右滑动查看全部指标，左侧区间名称保持固定。</p></section>
+    <div class="notice">“过去 N 年”按日期锚点倒推整年；固定起点区间从标明的日期开始。共同截止日受实际净值覆盖限制。各区间是独立回测，不能把不同区间的利润相加。</div>
     <section><h2>每个自然年的盈亏</h2><p>“—”表示不在该区间内；0.00 才表示该年盈亏为零。首尾不足一整年的单元格注明具体范围，未作全年外推。</p>
     <div class="table-wrap"><table id="annual-matrix"><thead><tr><th>自然年 / 盈亏（元）</th>{table_head}</tr></thead>
     <tbody>{''.join(body)}</tbody><tfoot><tr><th>各区间累计盈亏</th>{totals}</tr></tfoot></table></div>

@@ -130,5 +130,3 @@ def test_six_windows_preserve_fixed_start_years_order_and_empty_year_counts(tmp_
     assert annual.groupby("window_id").profit.sum().to_dict() == {
         "1y": 2., "3y": 12., "5y": 30., "10y": 110., "since_20160101": 11., "since_20100101": 17.}
     assert len(set(COLORS)) == 6
-    assert document.count('<article class="card"') == 6
-    assert ".cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))" in document
