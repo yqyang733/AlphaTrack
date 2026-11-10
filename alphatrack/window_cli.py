@@ -1,4 +1,4 @@
-"""Compare independently restarted trailing-year QLab portfolio backtests."""
+"""Compare independent trailing-year and fixed-start QLab portfolio backtests."""
 import argparse
 from datetime import date, datetime
 import json
@@ -11,10 +11,13 @@ from .portfolio_cli import run_config, write_json
 from .strategies.qlab import QLabRules
 
 
-def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10)):
+DEFAULT_FIXED_START = '2016-01-01'
+
+
+def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10), fixed_start=DEFAULT_FIXED_START):
     """Anchor starts to the requested date; cap all ends at common NAV coverage."""
     anchor = pd.Timestamp(date.fromisoformat(as_of))
-    if not years or any(type(year) is not int or year <= 0 for year in years):
+    if (not years and fixed_start is None) or any(type(year) is not int or year <= 0 for year in years):
         raise ValueError('Window years must be positive integers')
     if len(set(years)) != len(years):
         raise ValueError('Window years must be unique')
@@ -33,18 +36,26 @@ def plan_windows(config_path, *, as_of, years=(1, 3, 5, 10)):
         start = anchor - pd.DateOffset(years=year)
         if start > effective_end:
             raise ValueError(f'No data in the {year}-year window')
-        windows.append({'years':year, 'start':str(start.date()), 'end':str(effective_end.date())})
+        windows.append({'window_id':f'{year}y', 'kind':'trailing', 'years':year, 'label':f'过去 {year} 年',
+                        'start':str(start.date()), 'end':str(effective_end.date())})
+    if fixed_start is not None:
+        start = pd.Timestamp(date.fromisoformat(fixed_start))
+        if start > effective_end:
+            raise ValueError('Fixed start exceeds the available end date')
+        fixed_date = str(start.date())
+        windows.append({'window_id':'since_'+fixed_date.replace('-',''), 'kind':'fixed', 'years':None,
+                        'label':f'{fixed_date} 至今', 'start':fixed_date, 'end':str(effective_end.date())})
     return windows
 
 
 def run_windows(config_path, *, as_of, years=(1, 3, 5, 10),
-                output='reports/qlab_portfolio_windows.html', render_only=False):
+                fixed_start=DEFAULT_FIXED_START, output='reports/qlab_portfolio_windows.html', render_only=False):
     config_path, output = Path(config_path).resolve(), Path(output).resolve()
-    windows = plan_windows(config_path, as_of=as_of, years=years)
+    windows = plan_windows(config_path, as_of=as_of, years=years, fixed_start=fixed_start)
     output.parent.mkdir(parents=True, exist_ok=True)
     runs = []
     for window in windows:
-        report = output.with_name(f'{output.stem}_{window["years"]}y.html')
+        report = output.with_name(f'{output.stem}_{window["window_id"]}.html')
         if render_only:
             payload = json.loads(report.with_suffix('.summary.json').read_text())
             summary = payload['summary']
@@ -53,23 +64,25 @@ def run_windows(config_path, *, as_of, years=(1, 3, 5, 10),
             if summary['beginning_assets'] != 0:
                 raise ValueError('Comparison requires independently restarted empty portfolios')
         else:
-            print(f'Running {window["years"]} years: {window["start"]} to {window["end"]}', flush=True)
+            print(f'Running {window["label"]}: {window["start"]} to {window["end"]}', flush=True)
             payload = run_config(config_path, start=window['start'], end=window['end'], output=report,
-                                 title=f'QLab 五类基金组合 · 近 {window["years"]} 年独立回测')
-        runs.append({'years':window['years'], 'report_path':report, 'payload':payload})
+                                 title=f'QLab 五类基金组合 · {window["label"]}独立回测')
+        runs.append({**window, 'report_path':report, 'payload':payload})
 
     annual_rows, window_payloads = [], []
     for run in runs:
-        payload, year = run['payload'], run['years']
-        annual_rows.extend({'window_years':year, **row} for row in payload['annual'])
-        window_payloads.append({'years':year, 'report':run['report_path'].name,
+        payload = run['payload']
+        annual_rows.extend({'window_id':run['window_id'], **row} for row in payload['annual'])
+        window_payloads.append({key:run[key] for key in ('window_id','kind','years','label','start','end')} | {
+                                'report':run['report_path'].name,
                                 'summary':payload['summary'], 'annual':payload['annual']})
     annual = pd.DataFrame(annual_rows)
-    annual.pivot(index='year', columns='window_years', values='profit').reindex(columns=list(years)).to_csv(
-        output.with_suffix('.annual_matrix.csv'), float_format='%.12g')
+    annual.pivot(index='year', columns='window_id', values='profit').reindex(
+        columns=[w['window_id'] for w in windows]).rename(columns={w['window_id']:w['label'] for w in windows}).to_csv(
+            output.with_suffix('.annual_matrix.csv'), float_format='%.12g')
     effective_end = windows[0]['end']
     write_json(output.with_suffix('.summary.json'), {
-        'as_of':as_of, 'effective_end':effective_end,
+        'as_of':as_of, 'effective_end':effective_end, 'fixed_start':fixed_start,
         'method':'Each window starts empty; earlier history warms indicators only. No inherited positions.',
         'windows':window_payloads})
     from .window_report import render_window_report
@@ -84,10 +97,16 @@ def main(argv=None):
     parser.add_argument('--as-of', default=datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat(),
                         help='YYYY-MM-DD anchor, defaults to today in Asia/Shanghai')
     parser.add_argument('--years', nargs='+', type=int, default=[1, 3, 5, 10])
+    fixed = parser.add_mutually_exclusive_group()
+    fixed.add_argument('--fixed-start', help='Fixed calendar start, defaults to 2016-01-01')
+    fixed.add_argument('--no-fixed-start', action='store_const', const=None, dest='fixed_start',
+                       help='Explicitly omit the fixed-start comparison')
+    parser.set_defaults(fixed_start=DEFAULT_FIXED_START)
     parser.add_argument('--output', default='reports/qlab_portfolio_windows.html')
     parser.add_argument('--render-only', action='store_true', help='Rebuild comparison from matching existing window exports')
     args = parser.parse_args(argv)
-    run_windows(args.config, as_of=args.as_of, years=args.years, output=args.output, render_only=args.render_only)
+    run_windows(args.config, as_of=args.as_of, years=args.years, fixed_start=args.fixed_start,
+                output=args.output, render_only=args.render_only)
 
 
 if __name__ == '__main__':

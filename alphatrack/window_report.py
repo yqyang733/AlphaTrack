@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 from .portfolio_report import _fmt, _json, _layout
 
 
-COLORS = ["#42dbc5", "#8da9ff", "#f4c875", "#c2a3f4"]
+COLORS = ["#42dbc5", "#8da9ff", "#f4c875", "#c2a3f4", "#f7a17d"]
 
 
 def _period(start, end, year):
@@ -40,10 +40,13 @@ def _relative_link(path, directory):
 def render_window_report(runs, output, *, as_of, effective_end):
     """Write an offline dashboard plus long-form annual and summary CSVs.
 
-    Each run is ``{years, report_path, payload}``, where ``payload`` is the result
-    of ``portfolio_cli.run_config`` and ``report_path`` identifies its HTML and
-    adjacent ``.daily.csv``. Every run must have been initialized independently.
-    Cells outside a run's calendar-year coverage are absent, never zero-filled.
+    Each run is ``{window_id, kind, years, label, start, end, report_path,
+    payload}``. ``kind`` is ``trailing`` or ``fixed``; fixed starts need not be
+    whole years before ``as_of``. Legacy ``{years, report_path, payload}`` runs
+    remain supported. Input order determines display order. ``payload`` is the
+    result of ``portfolio_cli.run_config``; the HTML's adjacent ``.daily.csv``
+    supplies the curve. All windows must have been initialized independently.
+    Cells outside calendar-year coverage are absent, never zero-filled.
     """
     output = Path(output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -51,22 +54,40 @@ def render_window_report(runs, output, *, as_of, effective_end):
     end = pd.Timestamp(effective_end).normalize()
     if end > anchor:
         raise ValueError("Effective data end must not exceed the as-of date")
-    ordered = sorted(list(runs), key=lambda r: int(r["years"]))
-    if not ordered or len({int(r["years"]) for r in ordered}) != len(ordered):
-        raise ValueError("Window lengths must be nonempty and unique")
+    ordered = list(runs)
+    if not ordered:
+        raise ValueError("Windows must be nonempty")
 
     windows, annual_records, summary_records = [], [], []
+    seen_ids = set()
     for i, run in enumerate(ordered):
-        years = int(run["years"])
-        if years < 1:
+        kind = run.get("kind", "trailing")
+        if kind not in {"trailing", "fixed"}:
+            raise ValueError(f"Unknown window kind: {kind}")
+        years = int(run["years"]) if kind == "trailing" else None
+        if kind == "trailing" and years < 1:
             raise ValueError("Window years must be positive")
+        if kind == "fixed" and not run.get("start"):
+            raise ValueError("Fixed windows require an explicit start date")
+        expected_start = (anchor - pd.DateOffset(years=years) if kind == "trailing"
+                          else pd.Timestamp(run["start"]).normalize())
+        window_id = str(run.get("window_id") or (f"{years}y" if kind == "trailing"
+                                                 else f"since_{expected_start:%Y%m%d}"))
+        if window_id in seen_ids:
+            raise ValueError("Window IDs must be unique")
+        seen_ids.add(window_id)
+        label = str(run.get("label") or (f"过去 {years} 年" if kind == "trailing"
+                                          else f"{expected_start.date()} 至今"))
         payload = run["payload"]
         summary = dict(payload["summary"])
         metadata = payload.get("metadata", {})
         start = pd.Timestamp(metadata.get("start_date", summary["start_date"]))
         declared_end = pd.Timestamp(metadata.get("end_date", summary["end_date"]))
-        if start != anchor - pd.DateOffset(years=years) or declared_end != end:
-            raise ValueError(f"Window {years} does not match the requested date range")
+        if (start != expected_start or declared_end != end
+                or pd.Timestamp(summary["start_date"]) != start
+                or (run.get("start") and pd.Timestamp(run["start"]) != start)
+                or (run.get("end") and pd.Timestamp(run["end"]) != end)):
+            raise ValueError(f"Window {window_id} does not match the requested date range")
         if start > end:
             raise ValueError("Window starts after the available data end")
         if abs(float(summary.get("beginning_assets", 0))) > 1e-8:
@@ -76,22 +97,23 @@ def render_window_report(runs, output, *, as_of, effective_end):
             raise ValueError("Duplicate calendar-year rows")
         expected = set(range(start.year, end.year + 1))
         if set(annual) != expected:
-            raise ValueError(f"Missing or out-of-range annual rows in window {years}")
+            raise ValueError(f"Missing or out-of-range annual rows in window {window_id}")
         report = Path(run["report_path"])
         daily = pd.read_csv(report.with_suffix(".daily.csv"), parse_dates=["date"])
         if daily.empty or daily.date.min() < start or daily.date.max() > end:
             raise ValueError("Daily ledger does not match the window")
         daily = daily.sort_values("date")
         cumulative = daily["cumulative_pnl"] if "cumulative_pnl" in daily else daily.daily_pnl.cumsum()
-        window = dict(years=years, label=f"近 {years} 年", start=str(start.date()), end=str(end.date()),
+        window = dict(window_id=window_id, kind=kind, years=years, label=label,
+                      start=str(start.date()), end=str(end.date()),
                       color=COLORS[i % len(COLORS)], summary=summary, annual=annual,
                       report_link=_relative_link(report, output.parent),
                       dates=daily.date.dt.strftime("%Y-%m-%d").tolist(), pnl=cumulative.tolist())
         windows.append(window)
-        summary_records.append(dict(window_years=years, requested_as_of=str(anchor.date()),
-                                    **summary))
+        identity = dict(window_id=window_id, window_label=label, window_kind=kind, window_years=years)
+        summary_records.append(dict(**identity, requested_as_of=str(anchor.date()), **summary))
         for year, row in sorted(annual.items()):
-            annual_records.append(dict(window_years=years, **row))
+            annual_records.append(dict(**identity, **row))
 
     all_years = list(range(min(pd.Timestamp(w["start"]).year for w in windows), end.year + 1))
     matrix = []
@@ -139,12 +161,13 @@ def render_window_report(runs, output, *, as_of, effective_end):
         pnl = _number(summary.get("total_pnl"))
         klass = "positive" if pnl is not None and pnl >= 0 else "negative"
         cards.append(f'''<article class="card" style="--accent:{window['color']}">
-          <div class="card-label">{window['label']} · 独立开始</div>
+          <div class="card-label">{html.escape(window['label'])}</div>
+          <div class="muted">{'固定起点' if window['kind']=='fixed' else '向前推整年'} · 独立空仓开始</div>
           <strong class="{klass}">{_fmt(pnl)}</strong><div class="muted">累计盈亏（含未实现）</div>
           <p>{window['start']} → {window['end']}</p>
           <a href="{window['report_link']}">查看这个区间的完整报告 ↗</a></article>''')
 
-    table_head = "".join(f'<th style="color:{w["color"]}">{w["label"]}</th>' for w in windows)
+    table_head = "".join(f'<th style="color:{w["color"]}">{html.escape(w["label"])}</th>' for w in windows)
     body = []
     for row in matrix:
         cells = []
@@ -188,7 +211,7 @@ def render_window_report(runs, output, *, as_of, effective_end):
     零手续费、下一条可用净值成交；未还原历史限购、暂停申赎、确认与到账延迟和 QDII 实际净值公布时刻，属于理论回测。
     使用当前基金名单回放历史，存在名单选择偏差；已知净值断档和分红缺失沿用原报告的处理，并在各区间完整报告披露。'''
     document = f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1"><title>近 {" / ".join(str(w['years']) for w in windows)} 年组合回测 | AlphaTrack</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1"><title>不同起点的基金组合回测 | AlphaTrack</title>
     <style>
     :root{{color-scheme:dark;--bg:#0b1723;--panel:#132335;--border:#2a3c51;--text:#edf5fa;--muted:#9bb0c7}}
     *{{box-sizing:border-box}}body{{margin:0;background:var(--bg);color:var(--text);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}}
@@ -196,22 +219,22 @@ def render_window_report(runs, output, *, as_of, effective_end):
     main{{max-width:1440px;margin:auto;padding:28px}}h1{{font-size:30px;line-height:1.35;margin:8px 0 16px}}h2{{font-size:21px;margin:0 0 8px}}
     .eyebrow{{color:#84d6cb;letter-spacing:3px;font-size:11px}}.muted,p,small{{color:var(--muted)}}p{{margin:8px 0 18px}}a{{color:#8adbd0;text-decoration:none}}a:hover{{text-decoration:underline}}
     .badges{{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 24px}}.badge{{padding:4px 10px;background:#192b3d;border:1px solid var(--border);border-radius:5px;font-size:12px}}
-    .cards{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}.card,section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}}
+    .cards{{display:grid;grid-template-columns:repeat({len(windows)},minmax(0,1fr));gap:14px}}.card,section{{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:22px}}
     .card{{border-top:3px solid var(--accent)}}.card strong{{display:block;font-size:25px;line-height:1.4;margin:12px 0 4px}}.card-label{{color:var(--accent);font-weight:650}}.card p,.card a,.card .muted{{font-size:12px}}
     section{{margin-top:24px;min-width:0}}.table-wrap{{overflow-x:auto;margin:16px 0 8px}}table{{border-collapse:collapse;width:100%;min-width:650px;font-variant-numeric:tabular-nums}}
     th,td{{padding:13px 16px;text-align:right;border-bottom:1px solid var(--border);white-space:nowrap}}th:first-child{{text-align:left}}thead th{{font-size:13px;background:#182a3d}}tbody th{{font-weight:550}}td small{{display:block;font-size:10px}}
     .positive{{color:#79d6c7}}.negative{{color:#ff9b91}}.missing{{color:#667e96}}.total{{font-weight:750}}tfoot th,tfoot td{{background:#1b3044}}
     .notice{{border-left:3px solid #60bfb6;background:#102b34;padding:14px 18px;margin:22px 0;color:#c3dcdf;font-size:13px}}
     .actions{{display:flex;gap:18px;flex-wrap:wrap;font-size:13px}}.notes{{white-space:pre-line;font-size:13px;line-height:1.9}}footer{{padding:20px 0;color:var(--muted);font-size:12px}}
-    @media(max-width:1000px){{.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}@media(max-width:600px){{main{{padding:18px 12px}}h1{{font-size:25px}}section,.card{{padding:16px 12px}}.cards{{gap:10px}}.card strong{{font-size:21px}}.card p{{font-size:10px}}}}
+    @media(max-width:1200px){{.cards{{grid-template-columns:repeat(3,minmax(0,1fr))}}}}@media(max-width:850px){{.cards{{grid-template-columns:repeat(2,minmax(0,1fr))}}}}@media(max-width:600px){{main{{padding:18px 12px}}h1{{font-size:25px}}section,.card{{padding:16px 12px}}.cards{{gap:10px}}.card strong{{font-size:21px}}.card p{{font-size:10px}}}}
     </style></head><body><header><b>α</b> AlphaTrack</header><main>
     <div class="eyebrow">INDEPENDENT STARTS / CALENDAR YEAR EARNINGS</div>
     <h1>从不同时间开始，每年能赚多少？</h1>
-    <p>同一套 QLab 五类基金规则，分别回测最近 {" / ".join(str(w['years']) for w in windows)} 年。先比较逐年模拟盈亏，再看投入规模和风险。</p>
+    <p>同一套 QLab 五类基金规则，比较 {html.escape('、'.join(w['label'] for w in windows))}。先看逐年模拟盈亏，再看投入规模和风险。</p>
     <div class="badges"><span class="badge">日期锚点 {anchor.date()}</span><span class="badge">共同净值截止 {end.date()}</span>
     <span class="badge">各区间独立空仓开始</span><span class="badge">无限资金 · 卖出款取出</span><span class="badge">金额单位：人民币元</span></div>
     <div class="cards">{''.join(cards)}</div>
-    <div class="notice">起点按日期锚点倒推整年；截止日受实际净值覆盖限制。下面每一列是一次独立回测，不能把不同列的利润相加。</div>
+    <div class="notice">“过去 N 年”按日期锚点倒推整年；固定起点区间从标明的日期开始。共同截止日受实际净值覆盖限制。每一列是一次独立回测，不能把不同列的利润相加。</div>
     <section><h2>每个自然年的盈亏</h2><p>“—”表示不在该区间内；0.00 才表示该年盈亏为零。首尾不足一整年的单元格注明具体范围，未作全年外推。</p>
     <div class="table-wrap"><table id="annual-matrix"><thead><tr><th>自然年 / 盈亏（元）</th>{table_head}</tr></thead>
     <tbody>{''.join(body)}</tbody><tfoot><tr><th>各区间累计盈亏</th>{totals}</tr></tfoot></table></div>

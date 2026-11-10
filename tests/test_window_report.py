@@ -52,3 +52,51 @@ def test_window_report_rejects_inherited_assets_or_wrong_anchor(tmp_path):
     run["payload"]["summary"]["beginning_assets"] = 0.
     with pytest.raises(ValueError, match="date range"):
         render_window_report([run], tmp_path / "bad.html", as_of="2026-11-09", effective_end="2026-11-06")
+
+
+def _fixed_run(tmp_path):
+    run = _run(tmp_path, 10, [1.] * 11)
+    path = tmp_path / "since_20160101.html"
+    pd.DataFrame({"date": ["2016-01-01", "2026-11-06"], "cumulative_pnl": [0., 11.]}).to_csv(
+        path.with_suffix(".daily.csv"), index=False)
+    run.update(window_id="since_20160101", kind="fixed", years=None, label="2016-01-01 至今",
+               start="2016-01-01", end="2026-11-06", report_path=path)
+    run["payload"]["summary"]["start_date"] = "2016-01-01"
+    run["payload"]["metadata"]["start_date"] = "2016-01-01"
+    return run
+
+
+def test_fixed_and_trailing_windows_keep_input_order_and_distinct_coverage(tmp_path):
+    fixed = _fixed_run(tmp_path)
+    trailing = _run(tmp_path, 10, [2.] * 11)
+    trailing.update(window_id="10y", kind="trailing", label="过去 10 年",
+                    start="2016-11-10", end="2026-11-06")
+    output = render_window_report([fixed, trailing], tmp_path / "mixed.html",
+                                  as_of="2026-11-10", effective_end="2026-11-06")
+    document = output.read_text()
+    matrix = json.loads(re.search(r'id="window-annual-data">(.*?)</script>', document, re.S).group(1))
+    assert matrix[0]["cells"][0]["start"] == "2016-01-01"
+    assert not matrix[0]["cells"][0]["partial"]
+    assert matrix[0]["cells"][1]["start"] == "2016-11-10"
+    assert matrix[0]["cells"][1]["partial"]
+    annual = pd.read_csv(output.with_suffix(".annual.csv"))
+    summary = pd.read_csv(output.with_suffix(".summary.csv"))
+    assert summary.window_id.tolist() == ["since_20160101", "10y"]
+    assert summary.window_kind.tolist() == ["fixed", "trailing"]
+    assert pd.isna(summary.window_years.iloc[0])
+    assert summary.window_years.iloc[1] == 10
+    assert annual.groupby("window_id").profit.sum().to_dict() == {"10y": 22., "since_20160101": 11.}
+    assert "2016-01-01 至今" in document and "固定起点" in document
+    assert "None 年" not in document
+
+
+def test_fixed_window_rejects_mismatched_start_and_duplicate_window_id(tmp_path):
+    fixed = _fixed_run(tmp_path)
+    fixed["start"] = "2016-02-01"
+    with pytest.raises(ValueError, match="date range"):
+        render_window_report([fixed], tmp_path / "bad.html", as_of="2026-11-10", effective_end="2026-11-06")
+    fixed["start"] = "2016-01-01"
+    trailing = _run(tmp_path, 1, [0., 12.])
+    trailing["window_id"] = "since_20160101"
+    with pytest.raises(ValueError, match="IDs must be unique"):
+        render_window_report([fixed, trailing], tmp_path / "bad.html", as_of="2026-11-10", effective_end="2026-11-06")

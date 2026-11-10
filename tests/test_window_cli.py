@@ -2,6 +2,7 @@
 import json
 
 import pandas as pd
+import pytest
 
 from alphatrack import window_cli
 
@@ -20,7 +21,25 @@ def test_windows_anchor_to_requested_date_and_share_actual_data_cutoff(tmp_path,
     path.write_text(json.dumps({'source':'source','data_dir':'data','types':['Fundd'],
                                 'engine':{'start':'2010-01-01','end':'2025-01-01'}}))
     windows = window_cli.plan_windows(path, as_of='2026-11-10')
-    assert [row['start'] for row in windows] == ['2025-11-10','2023-11-10','2021-11-10','2016-11-10']
+    assert [row['start'] for row in windows] == ['2025-11-10','2023-11-10','2021-11-10','2016-11-10','2016-01-01']
+    assert [row['window_id'] for row in windows] == ['1y','3y','5y','10y','since_20160101']
+    assert windows[-1]['kind'] == 'fixed' and windows[-1]['years'] is None
     assert {row['end'] for row in windows} == {'2026-11-06'}
-    leap = window_cli.plan_windows(path, as_of='2024-02-29', years=[1])
-    assert leap == [{'years':1, 'start':'2023-02-28', 'end':'2024-02-29'}]
+    leap = window_cli.plan_windows(path, as_of='2024-02-29', years=[1], fixed_start=None)
+    assert len(leap) == 1 and leap[0]['start'] == '2023-02-28' and leap[0]['end'] == '2024-02-29'
+    next_anchor = window_cli.plan_windows(path, as_of='2026-11-11')
+    assert next_anchor[0]['start'] == '2025-11-11'
+    assert next_anchor[-1]['start'] == '2016-01-01'
+    with pytest.raises(ValueError, match='Fixed start'):
+        window_cli.plan_windows(path, as_of='2015-12-31')
+
+
+def test_cli_includes_fixed_start_by_default_and_allows_explicit_override(monkeypatch):
+    calls = []
+    monkeypatch.setattr(window_cli, 'run_windows', lambda *args, **kwargs: calls.append(kwargs))
+    window_cli.main(['--as-of','2026-11-10'])
+    assert calls[-1]['years'] == [1,3,5,10] and calls[-1]['fixed_start'] == '2016-01-01'
+    window_cli.main(['--as-of','2026-11-10','--no-fixed-start'])
+    assert calls[-1]['fixed_start'] is None
+    window_cli.main(['--as-of','2026-11-10','--fixed-start','2018-01-01'])
+    assert calls[-1]['fixed_start'] == '2018-01-01'
