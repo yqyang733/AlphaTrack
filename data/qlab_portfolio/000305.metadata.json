@@ -1,0 +1,21 @@
+{
+  "code": "000305",
+  "name": "中银中高等级债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000305.js",
+  "source_sha256": "f220b5e34fc33ea0b004d9fd72c2ce63f66c44a4a54a11e25a10473656babab2",
+  "retrieved_at": "2026-11-10T08:06:42.330307+00:00",
+  "rows": 3116,
+  "first_date": "2013-12-05",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "1100cdd8fc0c1a290790fe2a13e4ee787d84c78d8af000897c2c26b7fe01bb02",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 25,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 7
+}

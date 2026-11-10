@@ -1,0 +1,21 @@
+{
+  "code": "000171",
+  "name": "易方达裕丰回报债券A",
+  "asset_type": "Fundc",
+  "category": "基金>混债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000171.js",
+  "source_sha256": "3af1a9baf001e8747bc41d02205b7fa0b7edd6670b6afcfd4326cb7ae7b88952",
+  "retrieved_at": "2026-11-10T08:06:43.452818+00:00",
+  "rows": 3204,
+  "first_date": "2013-08-23",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "7a2ef0c9457c01c7e69845f473af6f1b1187d4067ee852de6bfa3123be47d8c6",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 2,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 7
+}

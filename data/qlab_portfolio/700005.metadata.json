@@ -1,0 +1,21 @@
+{
+  "code": "700005",
+  "name": "平安添利债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/700005.js",
+  "source_sha256": "35754510a9ec1a5834c6925dce1b77b4f67a00ce077ec9b65c860fbcd273b93c",
+  "retrieved_at": "2026-11-10T08:06:42.591036+00:00",
+  "rows": 3376,
+  "first_date": "2012-11-27",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "d999b85e58af0b50b5bb41969e1110a90dc0ff1a26b1431c53c66909b8c941bb",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 9,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 9
+}

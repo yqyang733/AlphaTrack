@@ -1,0 +1,21 @@
+{
+  "code": "008280",
+  "name": "(煤炭)国泰中证煤炭ETF联接C",
+  "asset_type": "Fundd",
+  "category": "基金>行业指数",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/008280.js",
+  "source_sha256": "6ec86a5e5625034ec75356127295398775ea75435ae0e2873370f477cc24ee5c",
+  "retrieved_at": "2026-11-10T08:06:44.727310+00:00",
+  "rows": 1632,
+  "first_date": "2020-01-16",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "b0fc7221a91d7bd99de7c5b516e2aa4a5eee3903896d6676c67c54f9c216e018",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 2,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}

@@ -1,0 +1,18 @@
+{
+  "title": "QLab 五类基金组合 · 2010年至今",
+  "source": "../vendor/qlab",
+  "data_dir": "../data/qlab_portfolio",
+  "types": ["Fundb", "Fundc", "Fundd", "Fundf_1", "Fundg"],
+  "engine": {
+    "initial_cash": 0,
+    "funding_mode": "topup",
+    "withdraw_on_sell": true,
+    "start": "2010-01-01",
+    "end": "2026-11-06",
+    "buy_fee": 0,
+    "sell_fee": 0,
+    "risk_free_rate": 0,
+    "periods_per_year": 252
+  },
+  "output": "../reports/qlab_portfolio_2010.html"
+}

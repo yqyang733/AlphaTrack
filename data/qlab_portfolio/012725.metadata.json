@@ -1,0 +1,21 @@
+{
+  "code": "012725",
+  "name": "(畜牧)国泰中证畜牧养殖ETF联接C",
+  "asset_type": "Fundd",
+  "category": "基金>行业指数",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/012725.js",
+  "source_sha256": "38eb3aaf71bccedca6ab866b6f3b03e368162c8f483ee5f7adcccb050f2b16eb",
+  "retrieved_at": "2026-11-10T08:06:45.270288+00:00",
+  "rows": 1296,
+  "first_date": "2021-07-02",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "64f8441ee48fa6fe0d69245e258a57fe38593e30653e936c526d2252e6f1172f",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 0,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}

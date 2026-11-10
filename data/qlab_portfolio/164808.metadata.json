@@ -1,0 +1,21 @@
+{
+  "code": "164808",
+  "name": "工银四季收益债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/164808.js",
+  "source_sha256": "d4789a055f6ff85fbcecc169ee354a98f6c62a94f8812bf617f1eed1f4eab037",
+  "retrieved_at": "2026-11-10T08:06:42.414023+00:00",
+  "rows": 3815,
+  "first_date": "2011-02-10",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "db4b381b2befef0d23fe0bb2ae14fa1946cc5ae6720e3710a45404b2df0b61bc",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 51,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 12
+}

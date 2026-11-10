@@ -1,0 +1,21 @@
+{
+  "code": "011102",
+  "name": "(光伏)天弘中证光伏产业指数A",
+  "asset_type": "Fundd",
+  "category": "基金>行业指数",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/011102.js",
+  "source_sha256": "285cb395b18860e64190c45e563d2cc096bc0d8d5d017a02b35bfe76adc64bcc",
+  "retrieved_at": "2026-11-10T08:06:44.820848+00:00",
+  "rows": 1391,
+  "first_date": "2021-01-28",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "f5236974c25b94abd420e8186aed532dde26799420783f3787cf2025056c59fe",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 0,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}

@@ -1,0 +1,21 @@
+{
+  "code": "007466",
+  "name": "华泰柏瑞中证红利低波ETF联接A",
+  "asset_type": "Fundf_1",
+  "category": "基金>红利低波基金",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/007466.js",
+  "source_sha256": "4aa2701cb453c2567ada86870ebe4640c5ba28e72923d9e90080a758b9daba6d",
+  "retrieved_at": "2026-11-10T08:06:45.591481+00:00",
+  "rows": 1759,
+  "first_date": "2019-07-15",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "7dc04ed18e803364abb7ce5fd46a2bb9a7539f44a48311d74660a64b6f7a7706",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 38,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}

@@ -1,0 +1,21 @@
+{
+  "code": "002276",
+  "name": "中邮纯债恒利债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/002276.js",
+  "source_sha256": "c540eee2458f4e37e7d1087851d104a2e893d8b3d2210d763140ba1ffd7e8049",
+  "retrieved_at": "2026-11-10T08:06:42.953371+00:00",
+  "rows": 2325,
+  "first_date": "2017-04-13",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "2207f4455e16c53a66dea68a3cf27cef69e0fc98d03c237541c8f14cf2b53a1b",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 3,
+  "dividend_audit": "remote_unreliable_additions_rejected",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 6
+}

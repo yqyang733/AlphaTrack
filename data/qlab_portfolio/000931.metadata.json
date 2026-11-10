@@ -1,0 +1,32 @@
+{
+  "code": "000931",
+  "name": "国寿安保尊益信用纯债债券",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000931.js",
+  "source_sha256": "2c6ea7be09bedb3eaac6e6649255994c7e43ded4fe00f917d65526df61f38921",
+  "retrieved_at": "2026-11-10T08:06:41.630630+00:00",
+  "rows": 2094,
+  "first_date": "2015-01-22",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "1f2dd8292ecdc317b95931e0954f390ca364ceaf30eb54c42a4feb70050b3d7b",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 5,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [
+    {
+      "分红日": "2017-03-22",
+      "分红类型": "现金分红",
+      "分红": "0.08"
+    },
+    {
+      "分红日": "2017-11-14",
+      "分红类型": "现金分红",
+      "分红": "0.04"
+    }
+  ],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 7
+}

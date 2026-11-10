@@ -1,0 +1,21 @@
+{
+  "code": "110020",
+  "name": "(沪深300)易方达沪深300ETF联接A",
+  "asset_type": "Fundd",
+  "category": "基金>宽基指数",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/110020.js",
+  "source_sha256": "3555bd5727abc43c8cd463b7db0d9d2af68fc10fc609224241fdeed64dbee6a5",
+  "retrieved_at": "2026-11-10T08:06:44.185652+00:00",
+  "rows": 4178,
+  "first_date": "2009-08-26",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "d9832a4938d2371da04569e49fa1093cb70b45c0772e3c873133dd9396e6d298",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 0,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 12
+}

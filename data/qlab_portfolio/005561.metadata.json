@@ -1,0 +1,21 @@
+{
+  "code": "005561",
+  "name": "创金合信中证红利低波动指数A",
+  "asset_type": "Fundf_1",
+  "category": "基金>红利低波基金",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/005561.js",
+  "source_sha256": "1be803a68b4e28106db61f7e605d6ef72b6b61b60c60946a9bf929e68e1601c2",
+  "retrieved_at": "2026-11-10T08:06:45.674796+00:00",
+  "rows": 2068,
+  "first_date": "2018-04-26",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "daf6e2c876a5464d2e0022fc30681c5220b58146210e3b5a60ea032cd91ed716",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 0,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 5
+}

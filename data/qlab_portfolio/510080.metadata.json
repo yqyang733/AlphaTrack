@@ -1,0 +1,21 @@
+{
+  "code": "510080",
+  "name": "长盛全债指数增强债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/510080.js",
+  "source_sha256": "5a735ee57066668c5e85159594c0f68dda702bed2eb9df27cd1c4530dc493394",
+  "retrieved_at": "2026-11-10T08:06:43.039820+00:00",
+  "rows": 5590,
+  "first_date": "2003-10-25",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "9b26dcd47ccb6a00993d62c9710568cc1cece851248a5837774cb5a62e02df1a",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 22,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 20
+}

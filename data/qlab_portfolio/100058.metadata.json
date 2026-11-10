@@ -1,0 +1,21 @@
+{
+  "code": "100058",
+  "name": "富国产业债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/100058.js",
+  "source_sha256": "4ed00a165a8002e01b93ce6f0d8d41484f15c476d699094c5587688898b23890",
+  "retrieved_at": "2026-11-10T08:06:42.498907+00:00",
+  "rows": 3633,
+  "first_date": "2011-12-05",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "412dd5a0d2f66aeda88995fe0f55f77007e0ea497fb3b57cf51bd1415364424c",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 35,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 12
+}

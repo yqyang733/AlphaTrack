@@ -1,0 +1,5 @@
+{
+  "fundf1_base_amount": 40,
+  "fundf1_buy_thresholds": [60, 50, 40, 30],
+  "fundf1_buy_multipliers": [1, 2, 3, 4]
+}

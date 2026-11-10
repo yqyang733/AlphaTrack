@@ -1,0 +1,21 @@
+{
+  "code": "000668",
+  "name": "国寿安保尊享债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000668.js",
+  "source_sha256": "3c9478c53f1271c48f5023c7989d9897aa3d3e0a1c19d57cee2000788d3f7a22",
+  "retrieved_at": "2026-11-10T08:06:42.084598+00:00",
+  "rows": 2978,
+  "first_date": "2014-07-24",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "05a3047dc15be919802d17993429d6d7d1b20213d3687287c02c1fd1c399bbf3",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 7,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 7
+}

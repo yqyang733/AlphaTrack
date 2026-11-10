@@ -1,0 +1,21 @@
+{
+  "code": "110017",
+  "name": "易方达增强回报债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/110017.js",
+  "source_sha256": "ec74ccdb459da8993ec4cc7bedf769c495a232263485f99c55a7777920aba8c3",
+  "retrieved_at": "2026-11-10T08:06:41.202299+00:00",
+  "rows": 4543,
+  "first_date": "2008-03-19",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "81af9b7c3da1b220583d02a6e6f8b0bad107b4b6346ce24730d7d0b33a35d3f7",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 31,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 12
+}

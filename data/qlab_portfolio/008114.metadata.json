@@ -1,0 +1,21 @@
+{
+  "code": "008114",
+  "name": "天弘中证红利低波动100联接A",
+  "asset_type": "Fundf_1",
+  "category": "基金>红利低波基金",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/008114.js",
+  "source_sha256": "f0448d645a706ececf301e93be6b315857e4de652a3515b1019b0fe3675643fd",
+  "retrieved_at": "2026-11-10T08:06:45.591590+00:00",
+  "rows": 1661,
+  "first_date": "2019-12-10",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "3c11d3870793030478574917335c63c7f8def627b6472a4949ef7d35be9a9c96",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 15,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}

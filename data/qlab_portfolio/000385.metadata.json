@@ -1,0 +1,21 @@
+{
+  "code": "000385",
+  "name": "景顺长城景颐双利债券A",
+  "asset_type": "Fundc",
+  "category": "基金>混债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000385.js",
+  "source_sha256": "94c51df2e342ef1914a6c7120009ec3027c38273dc6215e47bf2a2db6f8dc1fa",
+  "retrieved_at": "2026-11-10T08:06:43.889018+00:00",
+  "rows": 3162,
+  "first_date": "2013-11-13",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "70a1689f0ec833134389d6a6868475cac94730b2118ba1fb5229e8f3d2ae5560",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 2,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 7
+}

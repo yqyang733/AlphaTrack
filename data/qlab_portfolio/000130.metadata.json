@@ -1,0 +1,21 @@
+{
+  "code": "000130",
+  "name": "大成景兴信用债债券A",
+  "asset_type": "Fundb",
+  "category": "基金>纯债",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/000130.js",
+  "source_sha256": "99d481ab0d2b60f2b1d8616642c957f07a41c83f52ec598bb073039099431a0e",
+  "retrieved_at": "2026-11-10T08:06:42.042217+00:00",
+  "rows": 3257,
+  "first_date": "2013-06-04",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "2d272439d7569785ab5599b949a40fab6f93031ea913034300d849937bcd1f41",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 2,
+  "dividend_audit": "verified_no_changes",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 8
+}

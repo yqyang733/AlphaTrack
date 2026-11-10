@@ -1,0 +1,21 @@
+{
+  "code": "007605",
+  "name": "嘉实沪深300红利低波动ETF联接A",
+  "asset_type": "Fundf_1",
+  "category": "基金>红利低波基金",
+  "source_url": "https://fund.eastmoney.com/pingzhongdata/007605.js",
+  "source_sha256": "590932cad5c7ae890295cd8980c2f81f33a69292e6c0a6fbc69eb9527f882c09",
+  "retrieved_at": "2026-11-10T08:06:45.948344+00:00",
+  "rows": 1675,
+  "first_date": "2019-12-09",
+  "last_date": "2026-11-06",
+  "raw_latest_date": "2026-11-09",
+  "data_sha256": "14f764d7a40bd937b0555c4e279d25ffb9de4ef73aa677074eb8bf29d928db05",
+  "dividend_source_commit": "1c1eb37f45a298b0aec3fabb673d269fa95892d5",
+  "dividend_events": 11,
+  "dividend_audit": "remote_rate_limited",
+  "missing_corporate_action_nav": [],
+  "corporate_actions": "QLab snapshot; cash dividends reinvested at ex-date NAV; split ratios exact",
+  "missing_nav_policy": "Preserve QLab existing omission for the two documented 000931 events; no date shifts or invented NAV",
+  "weekend_observations": 3
+}
