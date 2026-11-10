@@ -37,11 +37,12 @@ def write_json(path, value):
     Path(path).write_text(json.dumps(_json_clean(value),ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8')
 
 
-def run_config(config_path, *, start=None, end=None, output=None, signal_cache=None):
+def run_config(config_path, *, start=None, end=None, output=None, signal_cache=None, title=None):
     config_path=Path(config_path).resolve()
     conf=json.loads(config_path.read_text())
     unknown=set(conf)-{'title','source','data_dir','types','engine','output'}
     if unknown: raise ValueError(f'Unknown portfolio configuration: {sorted(unknown)}')
+    if title is not None: conf['title']=title
     source=(config_path.parent/conf['source']).resolve()
     data_dir=(config_path.parent/conf['data_dir']).resolve()
     output=Path(output).resolve() if output else (config_path.parent/conf['output']).resolve()
@@ -176,9 +177,10 @@ def main(argv=None):
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config',default='configs/qlab_portfolio.json')
     p.add_argument('--start');p.add_argument('--end');p.add_argument('--output')
+    p.add_argument('--title',help='Optional display title for this independent run')
     p.add_argument('--signal-cache',help='Explicit trusted local cache; hashes and date range must match')
     args=p.parse_args(argv)
-    run_config(args.config,start=args.start,end=args.end,output=args.output,signal_cache=args.signal_cache)
+    run_config(args.config,start=args.start,end=args.end,output=args.output,signal_cache=args.signal_cache,title=args.title)
 
 
 if __name__=='__main__':main()

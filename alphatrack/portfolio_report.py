@@ -106,6 +106,7 @@ def _normalize_annual(annual):
         year = _pick(row, "year", "calendar_year")
         result.append(dict(
             year=year, period=_pick(row, "period", "year_label", default=str(year)),
+            start_date=_pick(row, "start_date"), end_date=_pick(row, "end_date"),
             is_partial=_pick(row, "is_partial", "is_partial_year", "partial_year", default=False),
             beginning_assets=_pick(row, "beginning_assets", "start_equity", "beginning_equity", "opening_equity"),
             contributions=_pick(row, "contributions", "deposits", "total_contributions", "external_flow"),
@@ -175,6 +176,15 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         for row in annual_rows:
             if str(row["year"]) == str(last_year):
                 row["is_partial"] = True
+    requested_start = pd.Timestamp(metadata.get("start_date", frame.date.iloc[0]))
+    for row in annual_rows:
+        year = int(row['year'])
+        left = pd.Timestamp(row['start_date']) if row['start_date'] else max(requested_start, pd.Timestamp(year, 1, 1))
+        right = pd.Timestamp(row['end_date']) if row['end_date'] else min(frame.date.iloc[-1], pd.Timestamp(year, 12, 31))
+        row['period'] = str(year)
+        if row['is_partial']:
+            row['period'] += (' YTD' if left.month == 1 and left.day == 1 else
+                              f'（{left:%m/%d}–{right:%m/%d}）')
 
     exported = []
     def export(fig, ident):
@@ -185,7 +195,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         return fragment
 
     yearly = go.Figure()
-    year_labels = [str(r["year"]) + (" YTD" if r["is_partial"] else "") for r in annual_rows]
+    year_labels = [r['period'] for r in annual_rows]
     profits = [r["profit"] for r in annual_rows]
     yearly.add_trace(go.Bar(x=year_labels, y=profits, name="年度盈亏",
                             marker_color=[TEAL if (p or 0) >= 0 else RED for p in profits],
@@ -349,7 +359,7 @@ _TEMPLATE = r'''<!doctype html>
 <div class="meta"><span class="pill green">Fundb · Fundc · Fundd · Fundf_1 · Fundg</span><span class="pill">{{START}} → {{END}}</span><span class="pill">无资金上限 · 按需投入</span><span class="pill">卖出款取出</span><span class="pill">人民币 · CNY</span></div>
 <section class="stats">{{CARDS}}</section>{{DATA_NOTICE}}
 <div class="note"><strong>年度收益怎么看：</strong>年度盈亏包含该年已实现收益与持仓浮盈亏的变化。<strong>投入不算盈利，卖出取回的本金也不算盈利。</strong>期末持仓没有强制卖出。XIRR 与净值年化衡量不同问题，不能与逐批年化均值混用。</div>
-<section class="panel" id="annual"><div class="panel-head"><div><h2>每年模拟盈利 / 亏损多少</h2><p>每根柱子对应一个自然年的盈亏金额。跨年持仓按年初、年末市值计量；YTD 是本年至数据截止日，不是全年预测。</p></div><span class="panel-index">01 / YEARLY EARNINGS</span></div>{{YEAR_PLOT}}
+<section class="panel" id="annual"><div class="panel-head"><div><h2>每年模拟盈利 / 亏损多少</h2><p>每根柱子对应一个自然年内的盈亏金额。年中开始的首年注明月日范围；YTD 是当年年初至截止日，均未外推为全年。</p></div><span class="panel-index">01 / YEARLY EARNINGS</span></div>{{YEAR_PLOT}}
 <div class="table-controls"><button id="export-years">导出年度明细 CSV</button><span class="muted" style="font-size:12px">金额单位：元；表格可横向滚动</span></div><div class="table-wrap"><table><thead id="annual-head"></thead><tbody id="annual-body"></tbody></table></div><p class="table-note">已实现/未实现分解采用加权平均成本；“当年未实现变化”指期末浮盈亏减期初浮盈亏，并非期末浮盈亏余额。年度盈亏与净值收益可能方向不同：金额盈亏受投入规模和时点影响，净值收益按各阶段收益连乘。年度 XIRR 把年初持仓市值视为期初投入，因此和整个组合的 XIRR 不可直接平均。{{XIRR_NOTE}}</p></section>
 <section class="panel" id="pnl"><div class="panel-head"><div><h2>组合与各类别 · 累计盈亏和每日盈亏</h2><p>累计盈亏包含已实现与未实现部分。悬停可查看具体日期和金额，单击图例可隐藏某个类别，双击图例可单独查看。</p></div><span class="panel-index">02 / P&amp;L</span></div>{{PNL_PLOT}}</section>
 <section class="panel"><div class="panel-head"><div><h2>剔除资金流后的单位净值与回撤</h2><p>追加资金不会凭空增加收益，取出资金不会形成亏损。这里评价整个组合，不是对各基金收益率做简单平均，也不是逐笔交易年化曲线。</p></div><span class="panel-index">03 / RETURN &amp; RISK</span></div>{{NAV_PLOT}}</section>
@@ -368,7 +378,7 @@ const percentKeys=new Set(['twr_return','xirr','max_drawdown']),moneyKeys=new Se
 const annualCols=[['year','年份'],['profit','当年盈亏'],['twr_return','年度净值收益'],['beginning_assets','年初资产'],['contributions','当年投入'],['withdrawals','当年取出'],['ending_assets','年末资产'],['realized_pnl','当年已实现盈亏'],['unrealized_change','当年未实现变化'],['xirr','年度资金 XIRR'],['max_drawdown','年内最大回撤'],['fees','交易费用']];
 const groupCols=[['asset_type','类别'],['total_pnl','累计盈亏'],['contributions','累计投入'],['withdrawals','累计取出'],['ending_assets','期末资产'],['realized_pnl','已实现盈亏'],['unrealized_pnl','未实现盈亏'],['xirr','资金 XIRR'],['buy_count','买入次数'],['sell_count','卖出次数']];
 const fundCols=[['code','基金代码'],['name','基金名称'],['asset_type','类别'],['total_pnl','累计盈亏'],['contributions','累计投入'],['withdrawals','累计取出'],['ending_assets','期末资产'],['xirr','资金 XIRR'],['buy_count','买入次数'],['sell_count','卖出次数'],['start_date','数据开始'],['first_buy_date','首次买入'],['end_date','最后净值'],['note','覆盖说明']];
-function show(v,k,row){if(k==='year')return String(v)+(row.is_partial?' YTD':'');if(percentKeys.has(k))return valid(v)?n(Number(v)*(k==='max_drawdown'?-Math.sign(Number(v)||1):1)*100)+'%':'—';if(moneyKeys.has(k))return n(v);if(k.endsWith('_count'))return n(v,0);return v===null||v===undefined||v===''?'—':String(v);}
+function show(v,k,row){if(k==='year')return row.period||String(v);if(percentKeys.has(k))return valid(v)?n(Number(v)*(k==='max_drawdown'?-Math.sign(Number(v)||1):1)*100)+'%':'—';if(moneyKeys.has(k))return n(v);if(k.endsWith('_count'))return n(v,0);return v===null||v===undefined||v===''?'—':String(v);}
 function table(name,rows,cols){const trh=document.createElement('tr');for(const [key,label] of cols){const th=document.createElement('th');th.textContent=label;trh.appendChild(th);}el(name+'-head').replaceChildren(trh);const body=el(name+'-body');body.replaceChildren();for(const row of rows){const tr=document.createElement('tr');if(row.is_partial)tr.classList.add('partial');for(const [key] of cols){const td=document.createElement('td');td.textContent=show(row[key],key,row);if(['profit','total_pnl'].includes(key)){td.classList.add('primary');if(valid(row[key]))td.classList.add(Number(row[key])>=0?'positive':'negative');}if(key==='name'){td.classList.add('name');td.title=String(row[key]||'');}if(['asset_type','start_date','end_date','first_buy_date'].includes(key))td.classList.add('text');if(key==='note')td.classList.add('note-cell');tr.appendChild(td);}body.appendChild(tr);}if(!rows.length){const tr=document.createElement('tr'),td=document.createElement('td');td.colSpan=cols.length;td.textContent='暂无符合条件的记录';tr.appendChild(td);body.appendChild(tr);}}
 function exportCSV(rows,cols,name){const csv=v=>'"'+String(v??'').replaceAll('"','""')+'"';const header=cols.map(([k,label])=>csv(label+(percentKeys.has(k)?'（小数）':''))).join(',');const lines=[header,...rows.map(r=>cols.map(([k])=>csv(k==='year'?show(r[k],k,r):r[k])).join(','))];const url=URL.createObjectURL(new Blob(['\ufeff'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 let currentPage=0,filtered=[];const pageSize=20;
