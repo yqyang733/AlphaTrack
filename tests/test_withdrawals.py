@@ -39,7 +39,10 @@ class WithdrawalTests(unittest.TestCase):
         from alphatrack.data import load_data
         from alphatrack.strategies.fundd import FunddStrategy
         from pathlib import Path
-        frame,_=load_data(Path(__file__).resolve().parents[1]/'data/110020.csv')
+        path = Path(__file__).resolve().parents[1] / 'data/110020.csv'
+        if not path.is_file():
+            self.skipTest("Local data snapshot missing; run scripts/prepare_local_data.py --from /path/to/AlphaTrack")
+        frame,_=load_data(path)
         keep,a=run_backtest(frame,FunddStrategy(),EngineConfig())
         withdraw,b=run_backtest(frame,FunddStrategy(),EngineConfig(withdraw_on_sell=True))
         np.testing.assert_allclose(a.amount,b.amount,atol=1e-8)

@@ -136,6 +136,8 @@ class LotTests(unittest.TestCase):
 
     def test_110020_fifo_reconciles_all_fills_and_terminal_holdings(self):
         root = Path(__file__).resolve().parents[1]
+        if not (root / "data/110020.csv").is_file():
+            self.skipTest("Local data snapshot missing; run scripts/prepare_local_data.py --from /path/to/AlphaTrack")
         frame, _ = load_data(root/"data/110020.csv")
         daily, trades = run_backtest(frame, FunddStrategy())
         lots, summary = analyze_lots(daily, trades)

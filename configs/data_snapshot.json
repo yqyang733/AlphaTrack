@@ -1,0 +1,774 @@
+{
+  "schema_version": 1,
+  "description": "Local input data snapshot used for the 2026-11-06 backtests. Data files are not distributed through Git. Restore from an existing AlphaTrack directory.",
+  "files": [
+    {
+      "path": "data/110020.csv",
+      "sha256": "0518887111f0e64c599dd58a72463ff2432aedbd4c974eb4adb3ac194d4e1428"
+    },
+    {
+      "path": "data/110020.metadata.json",
+      "sha256": "eba540773195d49f2d93c09e107288c116585d7290c95de895998637ed9fc330"
+    },
+    {
+      "path": "data/qlab_portfolio/000037.csv",
+      "sha256": "a4fa05237ef82a86dc8aec80b84f909140507875a79fc1ca716eab58ed43f6f9"
+    },
+    {
+      "path": "data/qlab_portfolio/000037.metadata.json",
+      "sha256": "e13ce965631ae9d8dd09bb6cc276079c05e9ba138bbbac5d982ac5d766086943"
+    },
+    {
+      "path": "data/qlab_portfolio/000045.csv",
+      "sha256": "e27b29422cf51be12c433a2d0ff2e01832a2d674882443b1c61ae173f59948c1"
+    },
+    {
+      "path": "data/qlab_portfolio/000045.metadata.json",
+      "sha256": "79913fb5bf0d5d377c41c65792da74c7447db6dc113e54e12c24d457aec4d0cc"
+    },
+    {
+      "path": "data/qlab_portfolio/000130.csv",
+      "sha256": "2d272439d7569785ab5599b949a40fab6f93031ea913034300d849937bcd1f41"
+    },
+    {
+      "path": "data/qlab_portfolio/000130.metadata.json",
+      "sha256": "d721841c9273ca698959c2da94adb11a87c1f754a7d229489ab03c852cd6ad28"
+    },
+    {
+      "path": "data/qlab_portfolio/000171.csv",
+      "sha256": "7a2ef0c9457c01c7e69845f473af6f1b1187d4067ee852de6bfa3123be47d8c6"
+    },
+    {
+      "path": "data/qlab_portfolio/000171.metadata.json",
+      "sha256": "7588dad9a1f590c2a426945a40a14f7121632b58dc14b6a395ddc1179e1f8702"
+    },
+    {
+      "path": "data/qlab_portfolio/000181.csv",
+      "sha256": "c360424e3891825ea193b0b8e00a633aed59c92c60a26d8f84f9456eec4eef9e"
+    },
+    {
+      "path": "data/qlab_portfolio/000181.metadata.json",
+      "sha256": "ec6b911064d4b1413cdb69fba1ab9071ab6df87d64cfc4141a7f342665c745cf"
+    },
+    {
+      "path": "data/qlab_portfolio/000248.csv",
+      "sha256": "fba49159e59354a94d08ab23e33c65387a7a55238c30f870d5fd2ba68fc69045"
+    },
+    {
+      "path": "data/qlab_portfolio/000248.metadata.json",
+      "sha256": "f6a4e419517f566b75766928d1d98b4c33595ea32f85d851ead4dd7e48d38fbe"
+    },
+    {
+      "path": "data/qlab_portfolio/000305.csv",
+      "sha256": "1100cdd8fc0c1a290790fe2a13e4ee787d84c78d8af000897c2c26b7fe01bb02"
+    },
+    {
+      "path": "data/qlab_portfolio/000305.metadata.json",
+      "sha256": "e44c1354b5ba6d5534fa7dcd9b1fbeb15b014c1034888f01b9dc82a26af8810c"
+    },
+    {
+      "path": "data/qlab_portfolio/000385.csv",
+      "sha256": "70a1689f0ec833134389d6a6868475cac94730b2118ba1fb5229e8f3d2ae5560"
+    },
+    {
+      "path": "data/qlab_portfolio/000385.metadata.json",
+      "sha256": "5f5becd9d1a16a7c4901404e5962753dcd494513b011e4969cd00ca04719a58c"
+    },
+    {
+      "path": "data/qlab_portfolio/000668.csv",
+      "sha256": "05a3047dc15be919802d17993429d6d7d1b20213d3687287c02c1fd1c399bbf3"
+    },
+    {
+      "path": "data/qlab_portfolio/000668.metadata.json",
+      "sha256": "792bbb90d527eb7d872e6fed5241a07eed6902ed20093ad7fd5938cbba232e88"
+    },
+    {
+      "path": "data/qlab_portfolio/000914.csv",
+      "sha256": "521fbd76efcd49f53448b3962983f310bf759074be02b58de1d2a60b63ac534b"
+    },
+    {
+      "path": "data/qlab_portfolio/000914.metadata.json",
+      "sha256": "bce674433b08cb900742bb7149d254d2b6de5d81a1fbfcc16d43b824c5e2916f"
+    },
+    {
+      "path": "data/qlab_portfolio/000931.csv",
+      "sha256": "1f2dd8292ecdc317b95931e0954f390ca364ceaf30eb54c42a4feb70050b3d7b"
+    },
+    {
+      "path": "data/qlab_portfolio/000931.metadata.json",
+      "sha256": "47dd952fd42acf270f75b359212661f263c532620dce2a2ebbce0c641a3bb803"
+    },
+    {
+      "path": "data/qlab_portfolio/000968.csv",
+      "sha256": "1eb35d0c24ce23d5a3a00ec28cda34da18f355b818a81e5b7448780be3e1831d"
+    },
+    {
+      "path": "data/qlab_portfolio/000968.metadata.json",
+      "sha256": "79acab95365ac7f9a6a4f441ea9d0a16170f885429de3ac0e5f5fbda10b8024a"
+    },
+    {
+      "path": "data/qlab_portfolio/001182.csv",
+      "sha256": "3028ef9125fff358eed12169747dfe5b70e489210be77d6a7d72494243f63b3d"
+    },
+    {
+      "path": "data/qlab_portfolio/001182.metadata.json",
+      "sha256": "72583905834a2ac6bc6955f5228859f5d69b549e36b1aabb10a6643f0ff2594e"
+    },
+    {
+      "path": "data/qlab_portfolio/001235.csv",
+      "sha256": "89d701c76e189118ebc76b577d4d056ad906db18ea40506397b3092994d6ced1"
+    },
+    {
+      "path": "data/qlab_portfolio/001235.metadata.json",
+      "sha256": "9752fc6d6a13591598c385fb444dd4ab4d7bc1d7aa6dcadd1123437e5b63057b"
+    },
+    {
+      "path": "data/qlab_portfolio/002276.csv",
+      "sha256": "2207f4455e16c53a66dea68a3cf27cef69e0fc98d03c237541c8f14cf2b53a1b"
+    },
+    {
+      "path": "data/qlab_portfolio/002276.metadata.json",
+      "sha256": "0d95b7f3b712610f9b7f2aa3cf39ced7cf6db7c4f6ca2f57e4d6789759df312b"
+    },
+    {
+      "path": "data/qlab_portfolio/002351.csv",
+      "sha256": "6527ab5dd8d6b5220ac4482cd520f1bc634e69c127305bb1a73f247e14369f7e"
+    },
+    {
+      "path": "data/qlab_portfolio/002351.metadata.json",
+      "sha256": "c06fd6bf1cbfa68065529b96e4005ff9aba2647cae599d901e8004c440c13264"
+    },
+    {
+      "path": "data/qlab_portfolio/002925.csv",
+      "sha256": "14ed87981f2f85ce0cd34b916fa289bd5c9c533dbff5b16aee47bb7bdf47e576"
+    },
+    {
+      "path": "data/qlab_portfolio/002925.metadata.json",
+      "sha256": "e5d13cf02e6e7757d2622f39970c41ae8db1280e089353fa4e52e0a4521fa8d3"
+    },
+    {
+      "path": "data/qlab_portfolio/003547.csv",
+      "sha256": "c555f617d1404e0d9418192d32949bc48447385a964a0258790035d632c3f43e"
+    },
+    {
+      "path": "data/qlab_portfolio/003547.metadata.json",
+      "sha256": "b3e7b744ba0752ca7acb52dba9e102fcd03d33b1a7507d3f2e9c6090261edba9"
+    },
+    {
+      "path": "data/qlab_portfolio/003949.csv",
+      "sha256": "337944335b84c400e34dee40283439c0249dd7df1099083908790dbf387ce1e3"
+    },
+    {
+      "path": "data/qlab_portfolio/003949.metadata.json",
+      "sha256": "c201a1c76c78345ea3311a0ee8961114acf269759adec679f023f021beaa91bd"
+    },
+    {
+      "path": "data/qlab_portfolio/004432.csv",
+      "sha256": "07955c83a11baa729deacb1441fac3ddf89b107c31ff1658b269d27a0b324b84"
+    },
+    {
+      "path": "data/qlab_portfolio/004432.metadata.json",
+      "sha256": "c9fe71c84c6eb9e28e6a4b1df1da58b9f400969a1f9af180af60fda0bec64164"
+    },
+    {
+      "path": "data/qlab_portfolio/005561.csv",
+      "sha256": "daf6e2c876a5464d2e0022fc30681c5220b58146210e3b5a60ea032cd91ed716"
+    },
+    {
+      "path": "data/qlab_portfolio/005561.metadata.json",
+      "sha256": "f9943ae3374698d6ee45d369b15e306803a86b3f8defe1aecafd7159113faa19"
+    },
+    {
+      "path": "data/qlab_portfolio/005908.csv",
+      "sha256": "51022e8622ea60da4e56e8c3d4fe03c075d588cd2e18a83038ee8a4743c7f3a2"
+    },
+    {
+      "path": "data/qlab_portfolio/005908.metadata.json",
+      "sha256": "bcf07a763c6620afa16c1c276a94a85afe4aceaee7764eaca34f972b640ddeff"
+    },
+    {
+      "path": "data/qlab_portfolio/006177.csv",
+      "sha256": "9c76c28b52d7c61aa20b0aa579f89b241c2a63f01df3ceaaa78b8cbf48dabefe"
+    },
+    {
+      "path": "data/qlab_portfolio/006177.metadata.json",
+      "sha256": "709c3d832ea48c68b0d66724253c6614f5d94a24d320546448f3988c6a1155de"
+    },
+    {
+      "path": "data/qlab_portfolio/007466.csv",
+      "sha256": "7dc04ed18e803364abb7ce5fd46a2bb9a7539f44a48311d74660a64b6f7a7706"
+    },
+    {
+      "path": "data/qlab_portfolio/007466.metadata.json",
+      "sha256": "f0fbb842e4b5d1a339a9146c76a411033ac29c4c3f656fb19718a176f2ccc79f"
+    },
+    {
+      "path": "data/qlab_portfolio/007605.csv",
+      "sha256": "14f764d7a40bd937b0555c4e279d25ffb9de4ef73aa677074eb8bf29d928db05"
+    },
+    {
+      "path": "data/qlab_portfolio/007605.metadata.json",
+      "sha256": "a8ff21d64d8498c0e8e38526498be5ea273fd9ded4f4c19209482b03ddd0741a"
+    },
+    {
+      "path": "data/qlab_portfolio/007873.csv",
+      "sha256": "720155bf20a284f36fbf6bea707b42a3d6a2a44b84e608543be2182ef8acfbf8"
+    },
+    {
+      "path": "data/qlab_portfolio/007873.metadata.json",
+      "sha256": "b986d4d4a6c4061edb8195a4c5dd214e6601f4f5fa4c772be43ea155b90a008e"
+    },
+    {
+      "path": "data/qlab_portfolio/008088.csv",
+      "sha256": "f75c5ecb8abbcd70bd50e752a5256cb5f9b46d8682c78aba7d189dce3804b120"
+    },
+    {
+      "path": "data/qlab_portfolio/008088.metadata.json",
+      "sha256": "759404ab841218e29a4fb2e169fba66a378c1e52da1edb9414dae2443aa308d2"
+    },
+    {
+      "path": "data/qlab_portfolio/008114.csv",
+      "sha256": "3c11d3870793030478574917335c63c7f8def627b6472a4949ef7d35be9a9c96"
+    },
+    {
+      "path": "data/qlab_portfolio/008114.metadata.json",
+      "sha256": "8b920b662f06a8fd3e2984f8c0676bbc92ad94eb243ce986c02903d5aea01bef"
+    },
+    {
+      "path": "data/qlab_portfolio/008163.csv",
+      "sha256": "4dfd29d1db90c736c94bbe035b0178db7744352a5c71772280f4af773eab2fe4"
+    },
+    {
+      "path": "data/qlab_portfolio/008163.metadata.json",
+      "sha256": "b4f830e84df93cad5559043e6d95f674221cda08c3148d904cca765b30c3602f"
+    },
+    {
+      "path": "data/qlab_portfolio/008280.csv",
+      "sha256": "b0fc7221a91d7bd99de7c5b516e2aa4a5eee3903896d6676c67c54f9c216e018"
+    },
+    {
+      "path": "data/qlab_portfolio/008280.metadata.json",
+      "sha256": "d792f63f7d27abb24a1253976071ca42ae5887a9c2d3392cc4ec61707c405335"
+    },
+    {
+      "path": "data/qlab_portfolio/008887.csv",
+      "sha256": "fc344e133040ba1e52fee0bdbd1bc698c21941b2bd9e62051d056c113062e469"
+    },
+    {
+      "path": "data/qlab_portfolio/008887.metadata.json",
+      "sha256": "ab56fad8bc4e65f649639a931ceb68e0e3a34d698c3631d1e3f74afe9a7fabbb"
+    },
+    {
+      "path": "data/qlab_portfolio/010769.csv",
+      "sha256": "581546546049dc16df1e1b4f523521e5f6fd0f44d4d9fc3099b37855f060eb09"
+    },
+    {
+      "path": "data/qlab_portfolio/010769.metadata.json",
+      "sha256": "093866f48059f26daf032c2098aabff0fe6eb28c0205d82d9a3edb2845f18bcf"
+    },
+    {
+      "path": "data/qlab_portfolio/011102.csv",
+      "sha256": "f5236974c25b94abd420e8186aed532dde26799420783f3787cf2025056c59fe"
+    },
+    {
+      "path": "data/qlab_portfolio/011102.metadata.json",
+      "sha256": "0da7764deee76bd812d49260985a342f6948dd5d9b054ceed302ef3925c0b974"
+    },
+    {
+      "path": "data/qlab_portfolio/012348.csv",
+      "sha256": "c591e33cd493b8a287a075161efc7c7503cbf73d905705a61f8974da8b3c838d"
+    },
+    {
+      "path": "data/qlab_portfolio/012348.metadata.json",
+      "sha256": "4ca52b39b168d8572e9fc26b2cb4a2a388d5e1795021626c02047d4107cebef6"
+    },
+    {
+      "path": "data/qlab_portfolio/012708.csv",
+      "sha256": "9c4c3d4ec53d8a0aefe3023f275c099c5345039e04d9b999c616cdffadba4da1"
+    },
+    {
+      "path": "data/qlab_portfolio/012708.metadata.json",
+      "sha256": "1b195d070e018bf86f96d964f526406e49a1251a64db6c68f3f46e53195630da"
+    },
+    {
+      "path": "data/qlab_portfolio/012725.csv",
+      "sha256": "64f8441ee48fa6fe0d69245e258a57fe38593e30653e936c526d2252e6f1172f"
+    },
+    {
+      "path": "data/qlab_portfolio/012725.metadata.json",
+      "sha256": "6ebf135293818e1ca8abfc83983d352a553565fd015d95e1df49cc98f2af095a"
+    },
+    {
+      "path": "data/qlab_portfolio/013179.csv",
+      "sha256": "1899657fafc13351d7ef968e0ac55053ce94594b2af2af1ae4f99857224c338e"
+    },
+    {
+      "path": "data/qlab_portfolio/013179.metadata.json",
+      "sha256": "74ff1a7f912dfeb9d53b5cd46f05e60db00914806447435a2b1bda64bcf743fc"
+    },
+    {
+      "path": "data/qlab_portfolio/022430.csv",
+      "sha256": "67e108350cff19671813cfbd62400717476b97147d4cdb681d2a8a4e312af881"
+    },
+    {
+      "path": "data/qlab_portfolio/022430.metadata.json",
+      "sha256": "e1206b783c99caaf2535b2609ad6ea88ac6e26ce3418c243c0d9054eeb996729"
+    },
+    {
+      "path": "data/qlab_portfolio/050025.csv",
+      "sha256": "590fb3e05bad28abc093f90175dfe1e3ea25a31a30384b3dbfae1b901d768667"
+    },
+    {
+      "path": "data/qlab_portfolio/050025.metadata.json",
+      "sha256": "b99b318930e6471a8ed498d4a30549a31882af146d50ef0f8711d0695030294f"
+    },
+    {
+      "path": "data/qlab_portfolio/070025.csv",
+      "sha256": "aa0bc2520c8099b8e2b2661a23ecd500caa2024dadb7dc7e362e34013ea5c6b3"
+    },
+    {
+      "path": "data/qlab_portfolio/070025.metadata.json",
+      "sha256": "d4b319ffd0f466cfa7d7d1a48fa26cd152f57605198435a8db4cfd7cdd876f7f"
+    },
+    {
+      "path": "data/qlab_portfolio/100058.csv",
+      "sha256": "412dd5a0d2f66aeda88995fe0f55f77007e0ea497fb3b57cf51bd1415364424c"
+    },
+    {
+      "path": "data/qlab_portfolio/100058.metadata.json",
+      "sha256": "18af94cacf90ac69d6b55d51512757a2783fb866fc1cd984b45d030665c81095"
+    },
+    {
+      "path": "data/qlab_portfolio/110017.csv",
+      "sha256": "81af9b7c3da1b220583d02a6e6f8b0bad107b4b6346ce24730d7d0b33a35d3f7"
+    },
+    {
+      "path": "data/qlab_portfolio/110017.metadata.json",
+      "sha256": "57a7135367157096182fc34af351eaa972f630b400b8649102adb24299ec379d"
+    },
+    {
+      "path": "data/qlab_portfolio/110020.csv",
+      "sha256": "d9832a4938d2371da04569e49fa1093cb70b45c0772e3c873133dd9396e6d298"
+    },
+    {
+      "path": "data/qlab_portfolio/110020.metadata.json",
+      "sha256": "403d7d132eaec19c9a55cb89735d1f9c3872313706c09d94093469c311aa2a6b"
+    },
+    {
+      "path": "data/qlab_portfolio/110026.csv",
+      "sha256": "eb6d1b0314c7c0f8694a6328e9300c8ca575ebd7ab8b9db8d1463dd98b52f038"
+    },
+    {
+      "path": "data/qlab_portfolio/110026.metadata.json",
+      "sha256": "d45bebbec2ab20f02087c11a4479ee52779c1d7f1e507db5318ec206241536f5"
+    },
+    {
+      "path": "data/qlab_portfolio/160119.csv",
+      "sha256": "41ddcc437bbae2e464629e1360bc984283c550a24180d279083f6bb7a66d9dc0"
+    },
+    {
+      "path": "data/qlab_portfolio/160119.metadata.json",
+      "sha256": "89817f0a113f9321627b6d90fb8125e0789668286166ee685ea52e4a59ff352a"
+    },
+    {
+      "path": "data/qlab_portfolio/161024.csv",
+      "sha256": "ab4a7e276c0385a40d8f8c91b02c80486842817bcf4370b310f309fc7b8c6ff2"
+    },
+    {
+      "path": "data/qlab_portfolio/161024.metadata.json",
+      "sha256": "76a4305d5a731164c6413ecd873a2a7ff4504eb5175042e536c26f1058eabb72"
+    },
+    {
+      "path": "data/qlab_portfolio/161115.csv",
+      "sha256": "71184b72218b3d9c1f6a8695c2e87ff18d98b02ac456a1991d35bf2f8be1b532"
+    },
+    {
+      "path": "data/qlab_portfolio/161115.metadata.json",
+      "sha256": "0383329e61c5d3a47b8df5ef201f495e8ffbb5081f08f89c8ee380d0ce60573b"
+    },
+    {
+      "path": "data/qlab_portfolio/161726.csv",
+      "sha256": "2a98bcb0cfafeb65a935ca38c808958262d3d5c21d4c36889f09aa3253fc9502"
+    },
+    {
+      "path": "data/qlab_portfolio/161726.metadata.json",
+      "sha256": "88bd96bd4bf8eec8cd6976e0d32162fef5ac7dde3c1b02edf7980a5d40713608"
+    },
+    {
+      "path": "data/qlab_portfolio/162412.csv",
+      "sha256": "7107b16d18460608d128c0067b42a29e82ad5edf2d9b8180dece38b9925c9b4d"
+    },
+    {
+      "path": "data/qlab_portfolio/162412.metadata.json",
+      "sha256": "4ac1e085577a6bf63a879e1299545fd8865566f1e9f09f3cc96d38be409fae75"
+    },
+    {
+      "path": "data/qlab_portfolio/164808.csv",
+      "sha256": "db4b381b2befef0d23fe0bb2ae14fa1946cc5ae6720e3710a45404b2df0b61bc"
+    },
+    {
+      "path": "data/qlab_portfolio/164808.metadata.json",
+      "sha256": "e61013b661c336bc954d0829f0df468c935e9a5cd148c411cbd23afa1820817f"
+    },
+    {
+      "path": "data/qlab_portfolio/202017.csv",
+      "sha256": "34129fbd33619d71233657c247235d03fa0e909928a7e397d4bf0e56fae4e3a0"
+    },
+    {
+      "path": "data/qlab_portfolio/202017.metadata.json",
+      "sha256": "3a988a5566520e925881bd0b35c1b73eeba44d4112d83a467bfedc461d192541"
+    },
+    {
+      "path": "data/qlab_portfolio/202108.csv",
+      "sha256": "49e521fdbe653956c98c6a7106b17da6d22f08ba5590483340bfc8f15e2e89db"
+    },
+    {
+      "path": "data/qlab_portfolio/202108.metadata.json",
+      "sha256": "1ec9aa0c99188e93299b5f0e7a4b1c75e3dc63cd8f2ad708ef40d5423f376a35"
+    },
+    {
+      "path": "data/qlab_portfolio/270042.csv",
+      "sha256": "d9fce96e63a088c89677fb0714501a4fe46bce704345cfc54de6fccfb3903b2b"
+    },
+    {
+      "path": "data/qlab_portfolio/270042.metadata.json",
+      "sha256": "eb19645ff52051acbd14d67a55ee80df180185c29aa95d427a37be624f0052b3"
+    },
+    {
+      "path": "data/qlab_portfolio/270044.csv",
+      "sha256": "27ce64fb3cd308ff82c0d97a79c48e78a4b134225e45554c61e640e6541a83ae"
+    },
+    {
+      "path": "data/qlab_portfolio/270044.metadata.json",
+      "sha256": "2b7559a9142b2f5250f2fad05883e0b79c4bf70c85e81b569401357c57fd4b3c"
+    },
+    {
+      "path": "data/qlab_portfolio/270048.csv",
+      "sha256": "c8e5532c23ce09f6e85d203fd8df86fa47e5675a3caaace4a488d4a1aca37d2a"
+    },
+    {
+      "path": "data/qlab_portfolio/270048.metadata.json",
+      "sha256": "1c835588e00fa5bae3696104bfbc45d926ee8cb27798fc895492476835f35092"
+    },
+    {
+      "path": "data/qlab_portfolio/400030.csv",
+      "sha256": "94ee0a8cb13cacafea3a842b9a300bb59062c8dbb3f01e770bcdf5b335a05d7e"
+    },
+    {
+      "path": "data/qlab_portfolio/400030.metadata.json",
+      "sha256": "89011ab5387547a9a58e781954a2f9b60c641eb28cf09c4de5f3a03ad9435bd3"
+    },
+    {
+      "path": "data/qlab_portfolio/470007.csv",
+      "sha256": "afa0c33eb5dd2426cb8f40695ad906fe08fd119a9a91419b69d8c26343138a1c"
+    },
+    {
+      "path": "data/qlab_portfolio/470007.metadata.json",
+      "sha256": "125453b41ced0530e519607f8573c15c99549210286768888394be41e5e5d87c"
+    },
+    {
+      "path": "data/qlab_portfolio/470018.csv",
+      "sha256": "f31b612b273487ca14dce0e7d8b709861ab3b0fec2215d64e0ca2441760309f7"
+    },
+    {
+      "path": "data/qlab_portfolio/470018.metadata.json",
+      "sha256": "b017f84a529e93c32cf4d0447bd740fdae32ee120b29fe920aac55546882c53d"
+    },
+    {
+      "path": "data/qlab_portfolio/510080.csv",
+      "sha256": "9b26dcd47ccb6a00993d62c9710568cc1cece851248a5837774cb5a62e02df1a"
+    },
+    {
+      "path": "data/qlab_portfolio/510080.metadata.json",
+      "sha256": "9d49453ff9fcecc41302648005651127ac37320e18fa7cbb3c6117e659629a9d"
+    },
+    {
+      "path": "data/qlab_portfolio/519669.csv",
+      "sha256": "25e3e60806eb42a847ce2fbadf6ad2267b78126848f2b1d636b70d531282642c"
+    },
+    {
+      "path": "data/qlab_portfolio/519669.metadata.json",
+      "sha256": "75802bab8830af97faaed6fe6cfe59eb4179d75035ff3d2c706a5f11460895b9"
+    },
+    {
+      "path": "data/qlab_portfolio/519674.csv",
+      "sha256": "a31976f3401fc856453699cd3c9a566d46b9267c55f065daed8d01ebd7a309c9"
+    },
+    {
+      "path": "data/qlab_portfolio/519674.metadata.json",
+      "sha256": "e66f1439b500bc86b3053505a6d05fa1fc1e756f3321fbd7d0a60fc93b746bf6"
+    },
+    {
+      "path": "data/qlab_portfolio/700005.csv",
+      "sha256": "d999b85e58af0b50b5bb41969e1110a90dc0ff1a26b1431c53c66909b8c941bb"
+    },
+    {
+      "path": "data/qlab_portfolio/700005.metadata.json",
+      "sha256": "d9a284b133c21173333bd236b80ce45ed42d9408f53c9b4cf5dc4ecf0a71c0e7"
+    },
+    {
+      "path": "data/qlab_portfolio/750002.csv",
+      "sha256": "803b9cfcfa085d438579a6bdf49c2031ff8e8f42e037f30a87fb5b64a574a489"
+    },
+    {
+      "path": "data/qlab_portfolio/750002.metadata.json",
+      "sha256": "558997c76f6655ba9cdb88baab4bf1e8f3aebff070468d6fe7bfa75a32be033a"
+    },
+    {
+      "path": "data/qlab_portfolio/manifest.json",
+      "sha256": "974b8dc946e9d4755a7350ee6e71ee1dad6cb8bbbf56cedfed4ac7a06fe84b38"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000037.csv",
+      "sha256": "d83934b8aa75e9ae72eadd1b5edf907af43002e3a5e00aed0530433406d279cc"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000045.csv",
+      "sha256": "3541aa77f25bbeb774723f05a5021e176305329f4b5dd9eacb487b3041a2191f"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000130.csv",
+      "sha256": "aa608b5ff279e1513f96e5d8d22f9889d373cd3a2cae379ca8f784ea394da546"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000171.csv",
+      "sha256": "5a39d61a6b60bd096c4c7515360fe8a32db50d4bf6dcfd9b0cfdd6b5195f7538"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000181.csv",
+      "sha256": "246af377cda831e2950070416f139828c6881f9e085c955c753ce4fd2afdc8c6"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000248.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000305.csv",
+      "sha256": "448962eb2cfd122998a3b92b447ed136855b6c46d5692c6d2adaafb49366a188"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000385.csv",
+      "sha256": "038f3e97aa5f3b108939a66e521e67392fcf74542349f410591b40cb8cf5c121"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000668.csv",
+      "sha256": "3ad5381c9ed7c51d731af0bcdc5031984caf0d5c60818cae38b1c4becd337659"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000914.csv",
+      "sha256": "d3eefe5c6d3b94d1c98fe650c845c4841511e28dfc19e0aaeb032f7229b250fd"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000931.csv",
+      "sha256": "36378edf0730afd1abb0933c7d9fa2c6d2087f50f1ff6b3e9e2f828b24dcabbf"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/000968.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/001182.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/001235.csv",
+      "sha256": "c79bda9fadedbbd8a01912d57d4a894459d0d6135460a8217bb14f9edb3c4b0c"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/002276.csv",
+      "sha256": "d6a7294c4e8acfe29ba9f64ddf49da083470acf82dd0997c87d59a892eb30fbe"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/002351.csv",
+      "sha256": "050c6e2c7e39455bcea1022d6bf3152f0d81065a3073c3a51fd487ef31e2ae60"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/002925.csv",
+      "sha256": "47b247c1bbc09969e923f58b651aca411cd266a333776c792a4a78714ce5877f"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/003547.csv",
+      "sha256": "01a5a5ecd54695312b02cecaa0e7060846941850de825930c6a29ee65a292d62"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/003949.csv",
+      "sha256": "85109f5e36880556e095991585155bc045581558ab2bb926ec68513fe0fb92a0"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/004432.csv",
+      "sha256": "8752df3784379b1228200da35c228284e03b68c3982221b7a200b74c204b2a72"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/005561.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/005908.csv",
+      "sha256": "1edc5ca2f39634d98d4f393610c504f60993f758ec68fb374176424383f1861d"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/006177.csv",
+      "sha256": "1a8cdfc85899a00483fcb7ac68cfeec7ce29118b32f277ac20d144c8bae10913"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/007466.csv",
+      "sha256": "aec965770227e364ab60e461131e2c135e05f34e2a6062ae83776c3d8a2f69cd"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/007605.csv",
+      "sha256": "1bf1fa2792ba57cf5eb6043dafad992c299dc8c56a15bae66e9806ce8e462ec5"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/007873.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/008088.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/008114.csv",
+      "sha256": "16f48de5a2fcd50413ad21f8b38bb8d135ab73c09d91a6493bcadbb8ec172c06"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/008163.csv",
+      "sha256": "48ae838727d6afd2558f3d33a83a1e8f4133622efbeb463ffddebdc5f5ac7912"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/008280.csv",
+      "sha256": "18901ef09fc4e0b09bf6e1443974b75b63578460fa61e50aaf50c9f6f2dfd9e5"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/008887.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/010769.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/011102.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/012348.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/012708.csv",
+      "sha256": "d4c50bb8450330b4420fd16ef77fb76d684cb7eb6dfe0148d49526387fe559c8"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/012725.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/013179.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/022430.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/050025.csv",
+      "sha256": "54f0f97c04db7291e3b7368a9dd5a3be32558c7b8d5923dbd8687fe39d0278b1"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/070025.csv",
+      "sha256": "4a801006e1c5bf98c886d7a512a4761ff5754d121ea5ce5fe13b3e4030373540"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/100058.csv",
+      "sha256": "fe1ec54d290860bafd1c7a0f27c9fe3f3dbd965147ceeed3907bf19f5187940c"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/110017.csv",
+      "sha256": "08cd2ac6ae280b23a012176c5600f38e8f8ff233ab1b07fc91ea786df3963eca"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/110020.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/110026.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/160119.csv",
+      "sha256": "e1e64814c3cde00ccfac2c2f56e984a49a8eaa90cff90d7e1e044be120725bf9"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/161024.csv",
+      "sha256": "a85a93fc45bfc5c73b5cff78d170e70a559aee335950501aea74a9d16ab08c15"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/161115.csv",
+      "sha256": "06225a2da47a9e0a79f7c305ae0fa8b87cea4859013f32d3329dac755cd5105f"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/161726.csv",
+      "sha256": "3605059fc7c0c88bef91f73a0d0238570b6073e4ae72ee6da09e2d34ebb23df6"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/162412.csv",
+      "sha256": "ada6203701307d4a838db6ad1145965a185d385c4556987dedd817e23662079b"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/164808.csv",
+      "sha256": "48bb61d7e5fa650c50f8d0efaef284aa819506cb54d07d025304fa8511d5d159"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/202017.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/202108.csv",
+      "sha256": "5ef9296e00a82e0e3ede6050e0c1fbe1b79839af2e6de9a2ba3fe72c1b381f15"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/270042.csv",
+      "sha256": "0b7c55d381cbd4513f4f0690f6e20e58f96135f62f0bfd36c6cf9a76b75344b1"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/270044.csv",
+      "sha256": "6210cc930e5a9d9400dc49bdc0aa6bad9b88b65775c031ed0ff859acbed857fd"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/270048.csv",
+      "sha256": "3730abe49ff67f604e5b9282831b8dac41c4bea41304c9af1b21a744812ebf81"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/400030.csv",
+      "sha256": "5e22047f29392e84c0d4ee536d57d7b47867ba63b828f483f45078645045371a"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/470007.csv",
+      "sha256": "03467893b1a02f6ede818fb81dc4f016bc905691f46affee7123eedd8c0ea594"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/470018.csv",
+      "sha256": "65e6395316f4ede210a022638d737c755f5c13ced8952b981cd7cf7b61895481"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/510080.csv",
+      "sha256": "38a4078d54d625d6ea5fb579a6e7ba065eac4efc1aabb77da4ec2a1e5c01a854"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/519669.csv",
+      "sha256": "00e856a51c66f1a265b9e066fbd177fb5ca12745fe934b23811a6ed7e5cebe99"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/519674.csv",
+      "sha256": "fa7356561e36b9a682e9ed0dd5e71e64e522c1fe962f6423a439a7e1b49f6eb4"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/700005.csv",
+      "sha256": "57ea07e81a8ae306d7ffcc28b091d8d09192473c4db1cfa67f3e0a5bffd579ae"
+    },
+    {
+      "path": "vendor/qlab/data_files/dividend/fund/750002.csv",
+      "sha256": "0a921e821a68fa11eac52958bd682546e3410df451770b3cbdc32026ff674b4d"
+    }
+  ]
+}

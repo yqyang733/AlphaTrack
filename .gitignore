@@ -3,3 +3,9 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 .DS_Store
+
+# GitHub stores source/configuration/docs only; all datasets and results stay local.
+/reports/*
+!/reports/README.md
+/data/*
+/vendor/qlab/data_files/dividend/

@@ -2,6 +2,23 @@
 
 **默认组合回测区间：2010、2015、2020、2025 年的1月1日至今。**运行 `python -m alphatrack.window_cli` 即计算这四组独立空仓回测；打开 `reports/qlab_portfolio_windows.html` 查看每个自然年的盈亏对照。起点从2010年起每隔5年生成，共同截止日受已保存净值覆盖限制；日期和数据覆盖到2030年后自动加入2030-01-01，之后以此类推。
 
+**仓库存储：**GitHub 只保存源码、测试、配置和使用说明。`data/` 的净值及元数据、参考分红数据、`reports/` 的全部图表/汇总/账本均只保存在本地，由 `.gitignore` 排除。基金名单、交易规则、固定源码版本及数据哈希配置保留，用于复核复现条件。新克隆请先按下方说明准备数据，再运行回测；本机已有完整结果可继续使用。报告生成说明见 [reports/README.md](reports/README.md)。
+
+## 数据准备（新克隆必读）
+
+实测数据不随代码下载，也不把最新网络数据当成本次历史快照。要精确复现本次结果，使用单独保管的 AlphaTrack 数据快照目录；其中需要保留 `data/` 和 `vendor/qlab/data_files/dividend/` 的相对路径。当前本机工作目录中的数据已保留。
+
+```bash
+# 从已有完整 AlphaTrack 目录或相同目录结构的数据备份恢复
+python scripts/prepare_local_data.py --from /path/to/saved/AlphaTrack
+# 核验当前本地数据与固定快照哈希一致
+python scripts/prepare_local_data.py --check
+```
+
+`configs/data_snapshot.json` 只记录所需文件路径和 SHA256，不包含净值。恢复程序先校验源文件，再补齐缺失文件；现有内容不匹配时拒绝覆盖。没有匹配的独立数据快照，只有代码不能精确重现本文数值。更新行情可用已有 `update_eastmoney.py`（只接受无分红/拆分的单基金）或 `import_qlab_snapshot.py`（已审核的原始归档）；更新后须另存快照及哈希，不能把新结果声称为旧快照复现。
+
+纯代码副本可直接运行 `pytest -q`：105项测试及32项子测试通过，两项依赖真实快照的测试会明确跳过；恢复本地数据后全套107项测试及32项子测试通过。
+
 ## QLab 五类基金组合回测
 
 新增 `Fundb + Fundc + Fundd + Fundf_1 + Fundg` 共63只基金组合，从 **2010-01-01** 空仓开始，到共同净值截止 **2026-11-06**。直接加载固定版本 QLab 的原始评分、排名和买卖函数，不重新发明策略。资金无限追加，卖出净回款立即取出，金额采用各类别原配置。
@@ -32,7 +49,7 @@ Fundb/c 的排名要求1/2/3/5年收益输入均有效、横截面评分可计�
 
 数据局限：000037从2013-06-20跳至2020-04-22，存在2498天断档；000931在2017-03-22、2017-11-14两次分红日无NAV，沿用QLab已有遗漏（主要影响历史评分）。不移动事件日期、不补造净值、不扩展到其他缺失情况。分红采用QLab快照；远程复核37只一致、25只限流、1只疑似错误新增未采纳，所有截止日前NAV事件注释均已与本地记录匹配（上述两条已知缺失除外）。
 
-`vendor/qlab/PROVENANCE.json` 固定源提交 `1c1eb37f45a298b0aec3fabb673d269fa95892d5` 和73个文件哈希。`data/qlab_portfolio/manifest.json` 固定63份净值、来源与质量说明。保存快照后，上面的回测命令无需联网或外部QLab目录。
+`vendor/qlab/PROVENANCE.json` 固定源提交 `1c1eb37f45a298b0aec3fabb673d269fa95892d5` 和73个文件哈希。`data/qlab_portfolio/manifest.json` 固定63份净值、来源与质量说明。这些数据文件不在 GitHub 当前版本内；按数据准备说明恢复后，上面的回测命令无需联网或外部QLab目录。
 
 新增模块：`strategies/qlab.py` 精确规则适配；`portfolio.py` 组合聚合、年度指标与多根XIRR检测；`portfolio_cli.py` 运行与导出；`portfolio_report.py` 离线报告。
 
@@ -61,7 +78,7 @@ python -m alphatrack.window_cli --years 1 3 5 10 --no-fixed-start
 | 2020年至今 | 2020-01-01 | 2026-11-06 |
 | 2025年至今 | 2025-01-01 | 2026-11-06 |
 
-汇总附件：`.annual.csv` 为四组逐年完整明细，`.annual_matrix.csv` 为年×窗口盈亏矩阵，`.summary.csv` 为区间指标，`.summary.json` 保存日期和各组结果，`fixed_starts` 记录实际起点，`fixed_start_policy` 记录默认起始年和五年步长。CSV以 `window_id/window_label/window_kind` 区分窗口，固定起点的 `window_years` 留空。四份 `_since_20100101/_since_20150101/_since_20200101/_since_20250101` 报告各有完整账本、交易、FIFO和验证JSON；可通过 `python scripts/verify_portfolio.py --report reports/qlab_portfolio_windows_since_20100101.html` 等逐个核对。2010窗口在源码版本、数据哈希、配置和起止日期一致后复用已验证账本；其他三个窗口独立重算。此前的滚动窗口及2016年起的报告保留为历史快照，不再纳入默认汇总。
+汇总附件：`.annual.csv` 为四组逐年完整明细，`.annual_matrix.csv` 为年×窗口盈亏矩阵，`.summary.csv` 为区间指标，`.summary.json` 保存日期和各组结果，`fixed_starts` 记录实际起点，`fixed_start_policy` 记录默认起始年和五年步长。CSV以 `window_id/window_label/window_kind` 区分窗口，固定起点的 `window_years` 留空。四份 `_since_20100101/_since_20150101/_since_20200101/_since_20250101` 本地报告各有完整账本、交易、FIFO和验证JSON；可通过 `python scripts/verify_portfolio.py --report reports/qlab_portfolio_windows_since_20100101.html` 等逐个核对。此前的1/3/5/10年滚动窗口及2016年起的旧报告已清理，可用自定义区间命令重新生成。
 
 ## 策略二：AlphaStep 随机选基版
 
@@ -107,6 +124,8 @@ Python 3.11+：
 python -m venv .venv
 source .venv/bin/activate
 pip install -e '.[test]'
+# 首次克隆需先恢复独立保存的数据；本机已有匹配数据时可跳过
+python scripts/prepare_local_data.py --from /path/to/saved/AlphaTrack
 python -m alphatrack --config configs/110020_fundd.json
 pytest -q
 ```
