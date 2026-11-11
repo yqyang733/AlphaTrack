@@ -10,7 +10,8 @@ requires-python = ">=3.11"
 dependencies = ["numpy>=1.26", "pandas>=2.2", "plotly>=6,<8"]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = ["pytest>=8", "lxml>=5"]
+preview = ["lxml>=5", "Pillow>=10"]
 
 [project.scripts]
 alphatrack = "alphatrack.cli:main"

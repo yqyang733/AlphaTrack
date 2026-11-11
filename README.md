@@ -17,7 +17,22 @@ python scripts/prepare_local_data.py --check
 
 `configs/data_snapshot.json` 只记录所需文件路径和 SHA256，不包含净值。恢复程序先校验源文件，再补齐缺失文件；现有内容不匹配时拒绝覆盖。没有匹配的独立数据快照，只有代码不能精确重现本文数值。更新行情可用已有 `update_eastmoney.py`（只接受无分红/拆分的单基金）或 `import_qlab_snapshot.py`（已审核的原始归档）；更新后须另存快照及哈希，不能把新结果声称为旧快照复现。
 
-纯代码副本可直接运行 `pytest -q`：106项测试及32项子测试通过，两项依赖真实快照的测试会明确跳过；恢复本地数据后全套108项测试及32项子测试通过。
+纯代码副本可直接运行 `pytest -q`：两项依赖真实快照的集成测试在未准备数据时会明确跳过；恢复本地数据后可运行全部测试。
+
+## 单基金：先核对曲线，再回测
+
+先提供基金代码和买卖规则。预览阶段只展示基金自身的分红再投资累计收益，不执行策略；用户确认曲线后再运行指定规则，汇总2010年至今年度盈亏、累计投入和XIRR等指标。成立前无数据年份标为未成立，当前年份只统计最新实际净值日期。
+
+```bash
+pip install -e '.[preview]'
+# 保存最新可获得的原始净值及分红页面；使用新的快照目录
+python scripts/prepare_single_fund.py --code 519981 --rule Fundg --snapshot-dir data/single/519981/20261111
+# 已保存原始响应时，用 --from-raw 离线重建，不再次下载
+python scripts/prepare_single_fund.py --code 519981 --rule Fundg --snapshot-dir data/single/519981/20261111 --from-raw
+python scripts/render_fund_curve.py --data data/single/519981/20261111/519981.csv --output reports/single_519981_fundg_curve_20261111.html
+```
+
+分红只使用除息日，现金换算为元/份，份额折算归一为1:x；新遇到除息日缺净值、重复事件、基金身份不符或净值注释未匹配时停止处理。标准化曲线与原QLab计算器逐点核验，通过后输出离线HTML和PNG。原始响应、净值和报告只保存在本地，不上传GitHub。`--rule`在预览阶段仅记录下一步所需规则，不会运行交易。
 
 ## QLab 五类基金组合回测
 
