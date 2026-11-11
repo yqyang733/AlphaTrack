@@ -1,7 +1,8 @@
 """Run one fund only after its exact dividend-reinvested curve is confirmed.
 
 Uses the existing QLab rules, next-NAV engine and cash-flow portfolio metrics.
-Ranking strategies require a peer universe and are deliberately not inferred.
+Ranking strategies require a peer universe. An explicit single-fund Fundb
+override buys 40 yuan on each eligible observation without peer ranking.
 """
 import argparse
 from dataclasses import asdict
@@ -59,10 +60,15 @@ def export_tables(output, annual, summary, warnings=()):
     output.with_suffix(".annual_yuan.tsv").write_text(tsv([annual_headers, *annual_rows]), encoding="utf-8")
 
 
-def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=False, category=None):
+def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=False, category=None,
+        fundb_daily_buy=False):
     if not curve_confirmed:
         raise ValueError("User must confirm this snapshot's curve before backtesting")
-    if rule not in {"Fundd", "Fundf_1", "Fundg"}:
+    if fundb_daily_buy and rule != "Fundb":
+        raise ValueError("fundb_daily_buy applies only to single-fund Fundb")
+    if rule == "Fundb" and not fundb_daily_buy:
+        raise ValueError("Single-fund Fundb requires explicit fundb_daily_buy; no ranking peer universe was supplied")
+    if rule not in {"Fundb", "Fundd", "Fundf_1", "Fundg"}:
         raise ValueError("Fundb/Fundc require an explicitly defined ranking peer universe")
     data, output = Path(data).resolve(), Path(output).resolve()
     frame, source_meta = load_data(data)
@@ -91,10 +97,30 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
     asset = dict(code=source_meta["code"], name=source_meta["name"], asset_type=rule,
                  category=category or "用户指定单基金", trade_mode="场外")
     key = asset_key(asset)
-    signals, signal_metadata = rules.build_signals({asset["code"]: frame}, [asset], start=start, end=terminal)
-    prepared = signals[key]
+    user_override = None
+    if fundb_daily_buy:
+        prepared = frame[frame.date <= terminal].copy()
+        prepared["trade_enabled"] = prepared.date.dt.dayofweek < 5
+        active_buy = prepared.trade_enabled & (prepared.date >= pd.Timestamp(start))
+        prepared["action"] = np.where(active_buy, "BUY", "HOLD")
+        prepared["amount"] = np.where(active_buy, 40.0, np.nan)
+        prepared["fraction"] = np.nan
+        prepared["rank"] = np.nan
+        prepared["score"] = np.nan
+        prepared["reason"] = np.where(active_buy, "用户指定单基金Fundb：每个交易日买入40元，不排名",
+                                      "不生成买入：起点之前或非交易日，仅估值")
+        user_override = dict(mode="daily_fixed", amount=40, ranking=False,
+                             calendar="weekday_nav", sell=False,
+                             execution="next enabled NAV; valuation-only dates retain pending orders")
+        signal_metadata = dict(selection_algorithm="user-defined-single-fund-daily-fixed",
+                               ranking=False, amount=40,
+                               nontrading_nav_dates=prepared.loc[~prepared.trade_enabled, "date"].dt.strftime("%Y-%m-%d").tolist())
+    else:
+        signals, signal_metadata = rules.build_signals({asset["code"]: frame}, [asset], start=start, end=terminal)
+        prepared = signals[key]
     cfg = EngineConfig(initial_cash=0, funding_mode="topup", withdraw_on_sell=True,
-                       start=start, end=str(terminal.date()), buy_fee=0, sell_fee=0)
+                       start=start, end=str(terminal.date()), buy_fee=0, sell_fee=0,
+                       trade_calendar_column="trade_enabled" if fundb_daily_buy else None)
     component, trades = run_backtest(prepared, QLabSignalStrategy(prepared), cfg)
     for field in ("code", "name", "asset_type"):
         component[field] = asset[field]
@@ -109,8 +135,9 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         raise ValueError("FIFO and account profit disagree")
     funds = pd.DataFrame([{**asset, **summary, "first_nav_date": source_meta["first_date"]}])
     groups = pd.DataFrame([{**summary, "asset_type": rule, "name": rule, "fund_count": 1}])
-    signal_metadata.update(universe="one user-selected fund; no peer ranking used",
-                           selection_algorithm="original-qlab-independent-fund-rule")
+    signal_metadata.update(universe="one user-selected fund; no peer ranking used")
+    if not fundb_daily_buy:
+        signal_metadata["selection_algorithm"] = "original-qlab-independent-fund-rule"
     assumptions = [
         f"用户指定 {asset['code']} {asset['name']}，采用 QLab 原 {rule} 买卖规则。",
         f"曲线经用户确认后使用同一份数据，截止 {cfg.end}；无二次更新或混用新数据。",
@@ -124,7 +151,12 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
     ]
     if rule == "Fundg":
         assumptions.insert(1, "Fundg：分红再投曲线的近一年高低位置≤60%时，每次买10元；原规则没有卖出。高低位置采用已有历史，不要求先等待完整一年。")
-    metadata = dict(scope="single_fund", title=f"{asset['code']} · {asset['name']} · {rule} 单基金回测",
+    if fundb_daily_buy:
+        assumptions[0] = f"用户指定 {asset['code']} {asset['name']}，单基金 Fundb 每个交易日买入40元，不参与排名，不卖出。"
+        assumptions[3] = "有真实净值的周一至周五作为可执行交易日；当日产生40元买入信号，下一可执行净值成交。周末保留待成交订单，只计算估值与分红；末日新信号不虚构成交。"
+        assumptions.insert(1, "这是用户明确设定的单基金固定买入规则；基金净值与分红再投资计算沿用QLab口径。")
+    display_rule = "Fundb 每日40元" if fundb_daily_buy else rule
+    metadata = dict(scope="single_fund", title=f"{asset['code']} · {asset['name']} · {display_rule} 单基金回测",
                     code=asset["code"], name=asset["name"], types=[rule], fund_count=1,
                     start_date=start, end_date=cfg.end, curve_confirmed_by_user=True,
                     approved_curve_data_sha256=digest, data_hashes={asset["code"]: digest},
@@ -133,14 +165,16 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
                     signal_metadata=signal_metadata, assumptions=assumptions,
                     warnings=source_meta.get("warnings", []),
                     approved_omissions=source_meta.get("approved_omissions", []),
-                    strategy={"name": rule, "scope": "single_fund"},
+                    strategy={"name": rule, "scope": "single_fund", **({"selection_mode": "daily_fixed"} if fundb_daily_buy else {})},
                     validation={"annual_pnl_sum": float(annual.profit.sum()),
                                 "fund_pnl_sum": summary["total_pnl"], "group_pnl_sum": summary["total_pnl"],
                                 "fifo_pnl_sum": lot_summary["total_pnl"],
                                 "cashflow_identity": summary["final_equity"] + summary["total_withdrawals"] - summary["total_contributions"]})
+    if user_override is not None:
+        metadata["user_rule_override"] = user_override
     config = dict(data=str(data.relative_to(ROOT)) if data.is_relative_to(ROOT) else str(data),
                   engine=asdict(cfg), strategy={"name": rule, "category": asset["category"]},
-                  rule_configuration=rules.configs[rule].to_dict())
+                  rule_configuration=user_override if user_override is not None else rules.configs[rule].to_dict())
     payload = dict(summary=summary, config=config, metadata=metadata, annual=annual.to_dict("records"),
                    funds=funds.to_dict("records"), groups=groups.to_dict("records"))
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -161,12 +195,13 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", required=True, type=Path)
-    parser.add_argument("--rule", required=True, choices=["Fundd", "Fundf_1", "Fundg"])
+    parser.add_argument("--rule", required=True, choices=["Fundb", "Fundd", "Fundf_1", "Fundg"])
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--start", default="2010-01-01")
     parser.add_argument("--end")
     parser.add_argument("--category", help="Fundd: 基金>宽基指数 selects the original broad-index amount")
     parser.add_argument("--curve-confirmed", action="store_true", help="Use only after the user confirms this exact snapshot's curve")
+    parser.add_argument("--fundb-daily-buy", action="store_true", help="User-specified single-fund Fundb: 40 yuan each weekday NAV, no ranking or sales")
     args = parser.parse_args()
     run(args.data, args.rule, args.output, start=args.start, end=args.end,
-        curve_confirmed=args.curve_confirmed, category=args.category)
+        curve_confirmed=args.curve_confirmed, category=args.category, fundb_daily_buy=args.fundb_daily_buy)

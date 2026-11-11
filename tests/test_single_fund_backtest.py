@@ -1,4 +1,4 @@
-"""Review gates and inception boundaries for the standalone Fundg workflow."""
+"""Review gates, calendar boundaries and explicit single-fund rule overrides."""
 import hashlib
 import json
 
@@ -109,3 +109,111 @@ def test_confirmed_fundg_run_keeps_pre_inception_year_empty(reviewed_snapshot, t
     headers, values = [line.split("\t") for line in pasted]
     assert values[headers.index("2010")] == "—"
     assert output.with_suffix(".summary.json").exists()
+
+
+@pytest.fixture
+def reviewed_daily_bond_snapshot(tmp_path):
+    """Keep a real Saturday year-end valuation/dividend between weekday orders."""
+    data = tmp_path / "003358.csv"
+    raw = pd.DataFrame({
+        "date": pd.to_datetime(["2011-12-29", "2011-12-30", "2011-12-31",
+                                "2012-01-02", "2012-01-03", "2012-01-04"]),
+        "nav": [1., 1., .8, .8, .8, .8],
+        "dividend": [0., 0., .1, 0., 0., 0.], "split": 1.,
+    })
+    raw.to_csv(data, index=False)
+    rules = QLabRules(backtest_single_fund.ROOT / "vendor/qlab")
+    reference = rules.calculator.ReturnCalculator.calculate_return_with_dividend_reinvest(
+        raw[["date", "nav"]].rename(columns={"date": "净值日期", "nav": "单位净值"}),
+        pd.DataFrame({"分红日": [pd.Timestamp("2011-12-31")],
+                      "分红类型": ["现金分红"], "分红": [.1]}))
+    normalized, _ = load_data(data)
+    error = float((normalized.total_return_index - (reference["累计收益率"] + 1)).abs().max())
+    assert error <= 1e-12
+    metadata = {"code": "003358", "name": "Synthetic reviewed daily bond",
+                "requested_strategy": "Fundb", "first_date": "2011-12-29", "last_date": "2012-01-04",
+                "data_sha256": hashlib.sha256(data.read_bytes()).hexdigest(),
+                "qlab_max_absolute_error": error,
+                "calculator_sha256": rules.source_hashes["core/calculator.py"]}
+    data.with_suffix(".metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    return data
+
+
+@pytest.mark.parametrize("rule,enabled,confirmed", [
+    ("Fundb", False, True), ("Fundg", True, True),
+    ("Fundc", True, True), ("Fundb", True, False),
+])
+def test_daily_bond_override_requires_explicit_matching_authorization(
+        reviewed_daily_bond_snapshot, tmp_path, monkeypatch, rule, enabled, confirmed):
+    output = tmp_path / "rejected_daily_bond" / "report"
+
+    def forbidden_engine(*args, **kwargs):
+        pytest.fail("An unauthorized override must not enter the engine")
+
+    monkeypatch.setattr(backtest_single_fund, "run_backtest", forbidden_engine)
+    with pytest.raises(ValueError):
+        backtest_single_fund.run(reviewed_daily_bond_snapshot, rule, output,
+                                curve_confirmed=confirmed, fundb_daily_buy=enabled)
+    assert not output.parent.exists()
+
+
+@pytest.mark.parametrize("start", ["2010-01-01", "2012-01-02"])
+def test_daily_bond_override_keeps_valuation_and_starts_without_ranking_or_replay(
+        reviewed_daily_bond_snapshot, tmp_path, monkeypatch, start):
+    output = tmp_path / "daily_bond" / "report"
+    before = reviewed_daily_bond_snapshot.read_bytes()
+
+    def forbidden_ranking(*args, **kwargs):
+        pytest.fail("This explicit single-fund override must not rank peers")
+
+    monkeypatch.setattr(QLabRules, "rank_snapshot", forbidden_ranking)
+    monkeypatch.setattr(backtest_single_fund, "render_portfolio_report", lambda *args, **kwargs: None)
+    payload = backtest_single_fund.run(reviewed_daily_bond_snapshot, "Fundb", output,
+                                     start=start, curve_confirmed=True, fundb_daily_buy=True)
+    assert reviewed_daily_bond_snapshot.read_bytes() == before
+    override = payload["metadata"]["user_rule_override"]
+    assert override["amount"] == 40
+    assert override["ranking"] is False
+    assert override["calendar"] == "weekday_nav"
+    assert "2011-12-31" in payload["metadata"]["signal_metadata"]["nontrading_nav_dates"]
+
+    component = pd.read_csv(output.with_suffix(".components_daily.csv.gz"), parse_dates=["date"])
+    signals = pd.read_csv(output.with_suffix(".signals.csv.gz"), parse_dates=["date"])
+    trades = pd.read_csv(output.with_suffix(".trades.csv"), parse_dates=["date", "signal_date"])
+    filled = trades[trades.status == "FILLED"]
+    assert filled.action.eq("BUY").all()
+    assert filled.amount.eq(40).all()
+    assert filled.date.dt.weekday.lt(5).all()
+    assert filled.signal_date.dt.weekday.lt(5).all()
+    assert signals.loc[signals.date.dt.weekday.lt(5), "action"].eq("BUY").all()
+    assert signals.loc[signals.date.dt.weekday.lt(5), "amount"].eq(40).all()
+    assert "SELL" not in set(signals.action)
+    assert component.iloc[0][["shares", "equity", "total_contributions"]].eq(0).all()
+
+    if start == "2010-01-01":
+        assert component.date.tolist() == list(pd.to_datetime([
+            "2011-12-29", "2011-12-30", "2011-12-31", "2012-01-02", "2012-01-03", "2012-01-04"]))
+        assert signals.iloc[0].action == "BUY"  # No one-year or five-year warm-up requirement.
+        assert payload["summary"]["first_investment_date"] == "2011-12-30"
+        weekend = component.loc[component.date == pd.Timestamp("2011-12-31")].iloc[0]
+        assert weekend.external_flow == 0
+        assert weekend.dividend == pytest.approx(.1)
+        assert weekend.shares == pytest.approx(45)  # Only Friday's 40 shares receive the dividend.
+        assert weekend.equity == pytest.approx(36)
+        assert weekend.daily_pnl == pytest.approx(-4)
+        assert signals.loc[signals.date == pd.Timestamp("2011-12-31"), "action"].item() == "HOLD"
+        monday = filled.loc[filled.date == pd.Timestamp("2012-01-02")].iloc[0]
+        assert monday.signal_date == pd.Timestamp("2011-12-30")  # Pending order survives the weekend.
+        annual = pd.read_csv(output.with_suffix(".annual.csv")).set_index("year")
+        assert annual.loc[2011, "end_assets"] == pytest.approx(36)
+        assert annual.loc[2011, "profit"] == pytest.approx(-4)
+        assert payload["summary"]["buy_count"] == 4
+        assert payload["summary"]["total_contributions"] == 160
+    else:
+        assert component.date.min() == pd.Timestamp("2012-01-02")
+        assert signals.date.min() == pd.Timestamp("2012-01-02")
+        assert filled.iloc[0].signal_date == pd.Timestamp("2012-01-02")
+        assert filled.iloc[0].date == pd.Timestamp("2012-01-03")
+        assert payload["summary"]["first_investment_date"] == "2012-01-03"
+        assert payload["summary"]["buy_count"] == 2
+        assert payload["summary"]["total_contributions"] == 80

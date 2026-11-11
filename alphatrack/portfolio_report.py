@@ -374,6 +374,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         "GROUP_DESCRIPTION": "各类别保留各自买卖规则和金额设置，未将 Fundd 的卖出规则套用到其他类别。类别之间的 XIRR 不能按行简单平均。",
         "XIRR_SCOPE": "整个组合",
         "FOOTER_SCOPE": "portfolio",
+        "SOURCE_LABEL": "QLab 规则版本",
     }
     if single_fund:
         copy.update({
@@ -387,6 +388,10 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
             "XIRR_SCOPE": "完整策略账户",
             "FOOTER_SCOPE": "single-fund strategy",
         })
+        if metadata.get("user_rule_override", {}).get("mode") == "daily_fixed":
+            amount = metadata["user_rule_override"]["amount"]
+            copy["SUBTITLE"] = f"对 {fund_label} 按用户指定的单基金 {type_label} 规则，每个可执行交易日买入{amount:g}元，不排名、不卖出；展示账户模拟盈亏（含未实现）、资金使用与风险。"
+            copy["SOURCE_LABEL"] = "QLab 净值/分红计算版本"
     replacements = {
         "TITLE": html.escape(title), "START": html.escape(start), "END": dates[-1],
         "TYPES": html.escape(type_label), "CARDS": "".join(cards), "AUDIT": audit_html,
@@ -428,7 +433,7 @@ _TEMPLATE = r'''<!doctype html>
 <section class="panel" id="members"><div class="panel-head"><div><h2>基金明细与数据覆盖</h2><p>每只基金按实际可用数据参与。净值开始日期不等于第一次买入日期；较晚成立的基金不会出现在早期持仓中。支持按类别筛选、盈亏排序和 CSV 导出。</p></div><span class="panel-index">06 / HOLDINGS</span></div>
 <div class="table-controls"><input id="fund-search" aria-label="搜索基金" placeholder="搜索代码 / 基金名称…"><select id="fund-group" aria-label="基金类别"><option value="">全部类别</option>{{TYPE_OPTIONS}}</select><select id="fund-sort" aria-label="基金排序"><option value="group">类别 / 代码</option><option value="profit_desc">累计盈亏 ↓</option><option value="profit_asc">累计盈亏 ↑</option><option value="contributions">累计投入 ↓</option></select><button id="export-funds">导出筛选 CSV</button></div>
 <div class="table-wrap"><table><thead id="fund-head"></thead><tbody id="fund-body"></tbody></table></div><div class="pagination"><span id="fund-count"></span><div><button id="prev-page">上一页</button><span id="page-label"></span><button id="next-page">下一页</button></div></div></section>
-<section class="panel" id="method"><div class="panel-head"><div><h2>口径、假设与可复核记录</h2><p>QLab 规则版本：<code>{{COMMIT}}</code>。该报告是历史规则模拟结果，数据覆盖和交易假设都会影响结果。</p></div><span class="panel-index">07 / AUDIT</span></div><div class="formula">当年盈亏 = 年末资产 − 年初资产 − 当年投入 + 当年取出<br>累计盈亏 = 期末资产 + 累计取出 − 累计投入</div><ul class="notes">{{NOTES}}</ul><details><summary>展开完整指标及 XIRR 求解状态</summary><pre>{{SUMMARY}}</pre></details><details><summary>展开规则、数据来源与执行假设</summary><pre>{{PROVENANCE}}</pre></details></section>
+<section class="panel" id="method"><div class="panel-head"><div><h2>口径、假设与可复核记录</h2><p>{{SOURCE_LABEL}}：<code>{{COMMIT}}</code>。该报告是历史规则模拟结果，数据覆盖和交易假设都会影响结果。</p></div><span class="panel-index">07 / AUDIT</span></div><div class="formula">当年盈亏 = 年末资产 − 年初资产 − 当年投入 + 当年取出<br>累计盈亏 = 期末资产 + 累计取出 − 累计投入</div><ul class="notes">{{NOTES}}</ul><details><summary>展开完整指标及 XIRR 求解状态</summary><pre>{{SUMMARY}}</pre></details><details><summary>展开规则、数据来源与执行假设</summary><pre>{{PROVENANCE}}</pre></details></section>
 <footer><span>AlphaTrack · Calendar-year {{FOOTER_SCOPE}} analysis</span><span>数据截至 {{END}} · Plotly 单文件离线报告</span></footer></main>
 <script>
 const annualRows={{ANNUAL_JSON}},allFunds={{FUND_JSON}},groupRows={{GROUP_JSON}};

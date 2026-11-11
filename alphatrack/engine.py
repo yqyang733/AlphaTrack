@@ -20,6 +20,7 @@ class EngineConfig:
     sell_fee: float = 0.0
     risk_free_rate: float = 0.0
     periods_per_year: int = 252
+    trade_calendar_column: str | None = None
 
     def __post_init__(self):
         if self.funding_mode not in {"fixed", "topup"}:
@@ -36,6 +37,8 @@ class EngineConfig:
             raise ValueError("Invalid fee or risk-free rate")
         if type(self.periods_per_year) is not int or self.periods_per_year < 1:
             raise ValueError("periods_per_year must be positive integer")
+        if self.trade_calendar_column is not None and (not isinstance(self.trade_calendar_column, str) or not self.trade_calendar_column):
+            raise ValueError("trade_calendar_column must be a nonempty column name or None")
         if self.start and self.end and pd.Timestamp(self.start) > pd.Timestamp(self.end):
             raise ValueError("start must precede end")
 
@@ -53,6 +56,9 @@ def run_backtest(frame, strategy, config=None):
         active = active[active.date <= pd.Timestamp(cfg.end)]
     if active.empty:
         raise ValueError("No data in requested date range")
+    if cfg.trade_calendar_column is not None:
+        if cfg.trade_calendar_column not in active or not active[cfg.trade_calendar_column].map(lambda value: isinstance(value, (bool, np.bool_))).all():
+            raise ValueError("Trade calendar column must contain only boolean values")
     active = active.reset_index(drop=True)
     cash, shares, cost = cfg.initial_cash, 0.0, 0.0
     contributed, realized, fees, invested = cfg.initial_cash, 0.0, 0.0, 0.0
@@ -63,6 +69,7 @@ def run_backtest(frame, strategy, config=None):
     reference = float(active.iloc[0].total_return_index)
     for index, row in active.iterrows():
         nav = float(row.nav)
+        can_trade = cfg.trade_calendar_column is None or bool(row[cfg.trade_calendar_column])
         flow, day_fee, withdrawal = 0.0, 0.0, 0.0
         # Apply corporate actions to holdings brought into this observation.
         shares *= float(row.split)
@@ -71,7 +78,7 @@ def run_backtest(frame, strategy, config=None):
             shares += distribution / nav
             # Cost unchanged: holding P&L includes reinvested distributions.
         pre_flow_equity = cash + shares * nav
-        if pending:
+        if pending and can_trade:
             decision, signal_date = pending
             action = decision["action"]
             amount, quantity, fee, status = 0.0, 0.0, 0.0, "FILLED"
@@ -150,8 +157,11 @@ def run_backtest(frame, strategy, config=None):
                       simple_return=(equity+withdrawn-contributed)/contributed if contributed else 0.0)
         daily.append(record)
         prev_equity = equity
-        decision = strategy.decide(row)
-        pending = (decision, row.date) if decision["action"] != "HOLD" else None
+        if can_trade:
+            decision = strategy.decide(row)
+            pending = (decision, row.date) if decision["action"] != "HOLD" else None
+        # Valuation-only observations retain pending orders until the next
+        # enabled execution date; dividends and year-end marks still count.
     # The final signal has no next NAV; preserve it in audit output without filling.
     if pending:
         decision, signal_date = pending

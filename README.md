@@ -43,11 +43,21 @@ python scripts/verify_portfolio.py --report reports/single_519981_fundg_2010.htm
 python scripts/verify_single_fundg.py
 ```
 
-`--curve-confirmed`仅在用户已核对该快照时使用；数据或原QLab计算器哈希不一致会拒绝运行。单基金入口复用原买卖引擎与包含提款的XIRR计算，支持 Fundg、Fundf_1，以及明确给定 `--category` 的 Fundd；Fundb/c 需要同类排名池，不能把一只基金伪装成有效排名池。起点默认2010-01-01，截止默认已核对快照的最后净值日。
+`--curve-confirmed`仅在用户已核对该快照时使用；数据或原QLab计算器哈希不一致会拒绝运行。单基金入口复用原买卖引擎与包含提款的XIRR计算，支持 Fundg、Fundf_1，以及明确给定 `--category` 的 Fundd。原Fundb/c排名规则需要同类排名池；用户指定的单只Fundb每日40元模式需显式添加 `--fundb-daily-buy`，不参与排名。起点默认2010-01-01，截止默认已核对快照的最后净值日。
 
 Fundg 保持近一年高低位置≤60%时买10元、不卖出的原规则（不足一年时使用已有历史）。结果输出年度盈亏、投入、期末资产、交易、FIFO、信号和账户曲线；`.paste_with_header_wan.tsv` 为“累计本金、累计盈亏、XIRR、TWR、回撤、夏普、波动率、2010年至今各年盈亏”的两行表头/数据，`.paste_2010_wan.tsv` 为仅数据的一行，金额单位万元。`.annual_yuan.tsv` 和 `.table.md` 保留元口径，避免单基金小额年度盈亏被万元舍入掩盖。2010等成立前年份显示“未成立/—”，原始账本不补造净值。
 
 原QLab直接比较二进制浮点高低位置，不增加阈值容差；恰好60%的十进制数学边界可能得到略大于60%的浮点值。本次050025出现一处这种情况，正式结果保留QLab原行为，独立审计另列精确数学信号的差异与影响，见 [050025浮点边界说明](docs/fundg-float-boundary-20261111.md)。
+
+用户已指定单基金Fundb不看排名，每个交易日买40元、不卖出。该模式按**有实际净值的周一至周五**生成信号，在下一可执行净值日成交；首个可执行观察日只产生信号，末日未成交信号保留待成交。所有原始净值仍用于分红与估值，包括周末年末披露，周末不成交、不产生新买入，之前的待成交订单延续至下一工作日。此覆盖仅作用于显式单基金入口，组合Fundb的排名与金额不变。
+
+```bash
+python scripts/backtest_single_fund.py --data data/single/003358/20261111/003358.csv --rule Fundb --fundb-daily-buy --curve-confirmed --output reports/single_003358_fundb_2010.html
+python scripts/verify_portfolio.py --report reports/single_003358_fundb_2010.html
+python scripts/verify_single_fundb_daily.py --data data/single/003358/20261111/003358.csv --report-prefix reports/single_003358_fundb_2010 --require-report
+```
+
+003358本次确认快照SHA256为 `9634e64c303877cd4c07441bb7f5f85daa37b08c14e52006a08f8295e541c2bf`，2016-09-27至2026-11-10共2447条净值，其中7条为周末披露。报告用 `user_rule_override` 记录每日40元、不排名的用户规则，避免将其标成原QLab排名策略。数据与报告只保存在本地。
 
 096001 的用户确认例外仅为 **2015-01-19 每份0.0187元现金分红**：该除息日缺净值，本次暂不计入，其余12笔正常处理。`configs/096001_fundg_omissions.json` 保存这项明确授权；处理器逐项匹配基金、日期、类型、金额，只允许省略缺少除息日净值的指定事件。如果日后补齐该日真实净值，旧例外会拒绝执行，须重新核对曲线。原始13笔记录继续保留，报告展示该项说明。
 
