@@ -268,7 +268,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     metrics = [
         ("累计盈亏", ("total_pnl", "profit"), "money", "已卖出收益 + 当前持仓浮动收益"),
         ("资金加权年化 · XIRR", ("xirr",), "percent", "按实际投入、取出与期末资产计算；不是逐笔年化均值"),
-        ("净值年化 · TWR", ("cagr", "annualized_return", "twr_annualized"), "percent", "剔除外部资金流；按完整评价时间年化"),
+        ("净值年化 · TWR", ("cagr", "annualized_return", "twr_annualized"), "percent", "剔除外部资金流；从首次投入日期起按实际天数年化"),
         ("最大回撤", ("max_drawdown",), "percent", "组合单位净值相对历史峰值的最大跌幅"),
         ("累计投入", ("total_contributions", "contributions", "total_deposits"), "money", "各次买入所需新增资金的累计金额"),
         ("累计取出", ("cumulative_withdrawals", "withdrawals", "total_withdrawals"), "money", "卖出净回款，包含收回本金，不能视作利润"),
@@ -300,8 +300,13 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     warnings = metadata.get("warnings", [])
     if isinstance(warnings, str):
         warnings = [warnings]
+    selection_note = (
+        "Fundb、Fundc 每日随机选8/5只，沿用原合格候选池与新净值下单限制"
+        if metadata.get("strategy", {}).get("selection_mode") == "random"
+        else "Fundb、Fundc 按原综合评分排名买入"
+    )
     default_notes = [
-        "本次五类规则中，Fundb、Fundc 按排名买入，Fundf_1、Fundg 按历史位置买入；只有 Fundd 配置明确卖出规则。没有擅自给其他类别增加止盈、年度清仓或定期卖出。",
+        f"本次五类规则中，{selection_note}；Fundf_1、Fundg 按历史位置买入；只有 Fundd 配置明确卖出规则。没有擅自给其他类别增加止盈、年度清仓或定期卖出。",
         "基金范围采用本次 QLab 名单并回溯历史，不能视为回测起点当时已知的选基结果；这会带来事后选择和幸存者偏差。",
         "回测起点之前的数据只用于计算历史指标，期初没有回放持仓。成立较晚的基金在有实际数据后参与；不向成立前回填净值。",
         "组合每日估值使用各基金截至当日的最近已知净值。某基金缺少当日净值时只延用估值，不因此重复生成该基金交易；境外基金估值还存在公布延迟。",

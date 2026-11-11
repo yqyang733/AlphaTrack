@@ -17,7 +17,7 @@ python scripts/prepare_local_data.py --check
 
 `configs/data_snapshot.json` 只记录所需文件路径和 SHA256，不包含净值。恢复程序先校验源文件，再补齐缺失文件；现有内容不匹配时拒绝覆盖。没有匹配的独立数据快照，只有代码不能精确重现本文数值。更新行情可用已有 `update_eastmoney.py`（只接受无分红/拆分的单基金）或 `import_qlab_snapshot.py`（已审核的原始归档）；更新后须另存快照及哈希，不能把新结果声称为旧快照复现。
 
-纯代码副本可直接运行 `pytest -q`：105项测试及32项子测试通过，两项依赖真实快照的测试会明确跳过；恢复本地数据后全套107项测试及32项子测试通过。
+纯代码副本可直接运行 `pytest -q`：106项测试及32项子测试通过，两项依赖真实快照的测试会明确跳过；恢复本地数据后全套108项测试及32项子测试通过。
 
 ## QLab 五类基金组合回测
 
@@ -52,6 +52,8 @@ Fundb/c 的排名要求1/2/3/5年收益输入均有效、横截面评分可计�
 `vendor/qlab/PROVENANCE.json` 固定源提交 `1c1eb37f45a298b0aec3fabb673d269fa95892d5` 和73个文件哈希。`data/qlab_portfolio/manifest.json` 固定63份净值、来源与质量说明。这些数据文件不在 GitHub 当前版本内；按数据准备说明恢复后，上面的回测命令无需联网或外部QLab目录。
 
 新增模块：`strategies/qlab.py` 精确规则适配；`portfolio.py` 组合聚合、年度指标与多根XIRR检测；`portfolio_cli.py` 运行与导出；`portfolio_report.py` 离线报告。
+
+本次两个策略、四个窗口的独立计算复核见 [计算审计说明](docs/calculation-audit-20261111.md)。可复跑脚本从原始净值、分红与交易记录重建账本、现金流和图表，审计结果保存在本地 `reports/audit_20261111_*.json`。
 
 ## 默认固定区间：从2010年起，每5年一个起点
 

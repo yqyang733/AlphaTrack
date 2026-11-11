@@ -3,11 +3,13 @@ import json
 import re
 
 import pandas as pd
+import pytest
 
 from alphatrack.portfolio_report import render_portfolio_report
 
 
-def test_offline_report_preserves_calendar_earnings_and_escapes_metadata(tmp_path):
+@pytest.mark.parametrize("selection_mode", ["ranked", "random"])
+def test_offline_report_preserves_calendar_earnings_and_escapes_metadata(tmp_path, selection_mode):
     daily = pd.DataFrame({
         "date": pd.to_datetime(["2020-12-31", "2021-01-04", "2021-11-09"]),
         "equity": [100., 110., 55.], "daily_pnl": [0., 10., 5.],
@@ -26,7 +28,8 @@ def test_offline_report_preserves_calendar_earnings_and_escapes_metadata(tmp_pat
     summary = dict(total_pnl=15., xirr=None, cagr=.1, max_drawdown=-.01,
                    total_contributions=100., total_withdrawals=60., final_equity=55., sharpe=.5)
     path = render_portfolio_report(daily, annual, funds, funds, summary,
-                                   {"title": "测试 </script>", "qlab_commit": "abc123"}, tmp_path / "report.html")
+                                   {"title": "测试 </script>", "qlab_commit": "abc123",
+                                    "strategy": {"selection_mode": selection_mode}}, tmp_path / "report.html")
     document = path.read_text()
     rows = json.loads(re.search(r"const annualRows=(.*?),allFunds=", document).group(1))
     assert rows[0]["profit"] == 15. and rows[0]["withdrawals"] == 60.
@@ -44,3 +47,12 @@ def test_offline_report_preserves_calendar_earnings_and_escapes_metadata(tmp_pat
     assert "年度清仓" in document and "包含收回本金" in document
     assert "每年模拟盈利" in document and "加权平均成本" in document
     assert all(f'id="portfolio-{name}-chart"' in document for name in ["annual", "pnl", "nav", "funding"])
+
+    assert "从首次投入日期起按实际天数年化" in document
+    assert "按完整评价时间年化" not in document
+    if selection_mode == "random":
+        assert "Fundb、Fundc 每日随机选8/5只" in document
+        assert "Fundb、Fundc 按原综合评分排名买入" not in document
+    else:
+        assert "Fundb、Fundc 按原综合评分排名买入" in document
+        assert "Fundb、Fundc 每日随机选8/5只" not in document
