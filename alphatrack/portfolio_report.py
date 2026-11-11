@@ -106,6 +106,7 @@ def _normalize_annual(annual):
         year = _pick(row, "year", "calendar_year")
         result.append(dict(
             year=year, period=_pick(row, "period", "year_label", default=str(year)),
+            year_status=_pick(row, "year_status", default=""),
             start_date=_pick(row, "start_date"), end_date=_pick(row, "end_date"),
             is_partial=_pick(row, "is_partial", "is_partial_year", "partial_year", default=False),
             beginning_assets=_pick(row, "beginning_assets", "start_equity", "beginning_equity", "opening_equity"),
@@ -165,6 +166,17 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     summary = dict(summary or {})
     annual_rows = _normalize_annual(annual)
     fund_rows = _normalize_members(funds)
+    single_fund = metadata.get("scope") == "single_fund"
+    account_label = "策略账户" if single_fund else "组合"
+    report_types = metadata.get("types") if single_fund else list(GROUP_COLORS)
+    if isinstance(report_types, str):
+        report_types = [report_types]
+    if not report_types:
+        report_types = list(dict.fromkeys(row["asset_type"] for row in fund_rows if row["asset_type"]))
+    type_label = " · ".join(str(value) for value in report_types)
+    first_fund = fund_rows[0] if fund_rows else {}
+    fund_label = " ".join(str(metadata.get(key) or first_fund.get(key) or "")
+                          for key in ("code", "name")).strip()
     group_daily = {}
     if isinstance(groups, dict) and "summary" in groups:
         group_daily = groups.get("daily", {})
@@ -179,6 +191,14 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     requested_start = pd.Timestamp(metadata.get("start_date", frame.date.iloc[0]))
     for row in annual_rows:
         year = int(row['year'])
+        if row["year_status"] == "not_incepted":
+            row["period"] = f"{year}（未成立）"
+            row["is_partial"] = False
+            for key in ("beginning_assets", "contributions", "withdrawals", "profit",
+                        "ending_assets", "twr_return", "xirr", "realized_pnl",
+                        "unrealized_change", "max_drawdown", "fees"):
+                row[key] = None
+            continue
         left = pd.Timestamp(row['start_date']) if row['start_date'] else max(requested_start, pd.Timestamp(year, 1, 1))
         right = pd.Timestamp(row['end_date']) if row['end_date'] else min(frame.date.iloc[-1], pd.Timestamp(year, 12, 31))
         row['period'] = str(year)
@@ -214,9 +234,9 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         cumulative = _series(frame, "daily_pnl").cumsum()
     pnl = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=.14,
                         row_heights=[.65, .35])
-    pnl.add_trace(go.Scatter(x=dates, y=cumulative, name="组合累计盈亏", mode="lines",
+    pnl.add_trace(go.Scatter(x=dates, y=cumulative, name=f"{account_label}累计盈亏", mode="lines",
                             line=dict(color="#ecf4fb", width=2.5),
-                            hovertemplate="组合累计盈亏 ¥%{y:,.2f}<extra></extra>"), row=1, col=1)
+                            hovertemplate=account_label + "累计盈亏 ¥%{y:,.2f}<extra></extra>"), row=1, col=1)
     for group, color in GROUP_COLORS.items():
         g = _frame(group_daily.get(group)) if isinstance(group_daily, dict) else pd.DataFrame()
         if not g.empty and "date" in g:
@@ -230,7 +250,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
             continue
         pnl.add_trace(go.Scatter(x=xs, y=ys, name=group, mode="lines", line=dict(color=color, width=1.5),
                                 hovertemplate=group + " 累计盈亏 ¥%{y:,.2f}<extra></extra>"), row=1, col=1)
-    pnl.add_trace(go.Scatter(x=dates, y=_series(frame, "daily_pnl"), name="组合当日盈亏", mode="lines",
+    pnl.add_trace(go.Scatter(x=dates, y=_series(frame, "daily_pnl"), name=f"{account_label}当日盈亏", mode="lines",
                             line=dict(color=BLUE, width=1), hovertemplate="当日盈亏 ¥%{y:,.2f}<extra></extra>"), row=2, col=1)
     _layout(pnl, 550)
     pnl.update_yaxes(title="累计盈亏 / 元", row=1, col=1)
@@ -240,7 +260,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
 
     nav = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=.13, row_heights=[.65, .35])
     nav.add_trace(go.Scatter(x=dates, y=_series(frame, "unit_nav", "unit_net_value", default=np.nan),
-                            name="组合单位净值", line=dict(color=TEAL, width=2),
+                            name=f"{account_label}单位净值", line=dict(color=TEAL, width=2),
                             hovertemplate="单位净值 %{y:.6f}<extra></extra>"), row=1, col=1)
     drawdown = _series(frame, "drawdown", default=np.nan)
     # A positive-magnitude input still displays downwards from the peak.
@@ -269,11 +289,11 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         ("累计盈亏", ("total_pnl", "profit"), "money", "已卖出收益 + 当前持仓浮动收益"),
         ("资金加权年化 · XIRR", ("xirr",), "percent", "按实际投入、取出与期末资产计算；不是逐笔年化均值"),
         ("净值年化 · TWR", ("cagr", "annualized_return", "twr_annualized"), "percent", "剔除外部资金流；从首次投入日期起按实际天数年化"),
-        ("最大回撤", ("max_drawdown",), "percent", "组合单位净值相对历史峰值的最大跌幅"),
+        ("最大回撤", ("max_drawdown",), "percent", f"{account_label}单位净值相对历史峰值的最大跌幅"),
         ("累计投入", ("total_contributions", "contributions", "total_deposits"), "money", "各次买入所需新增资金的累计金额"),
         ("累计取出", ("cumulative_withdrawals", "withdrawals", "total_withdrawals"), "money", "卖出净回款，包含收回本金，不能视作利润"),
         ("期末剩余资产", ("final_equity", "ending_assets", "equity"), "money", "未假设期末全部卖出；按最近可用净值估值"),
-        ("夏普比率", ("sharpe",), "number", "依据组合日净值收益；无风险利率与年化天数见口径"),
+        ("夏普比率", ("sharpe",), "number", f"依据{account_label}日净值收益；无风险利率与年化天数见口径"),
     ]
     cards = []
     for title, keys, kind, note in metrics:
@@ -315,6 +335,14 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         "本页年度与类别表中的已实现/未实现盈亏按账户加权平均成本分解。另附 lots.csv 使用 FIFO 逐批匹配，两种分解的总盈亏一致，分项不可混用。",
         "年度净值收益是该年区间收益；XIRR 是年化资金收益。未结束年份标记 YTD，不把其盈利金额外推为全年。",
     ]
+    if single_fund:
+        default_notes[:2] = [
+            f"本页仅对指定基金 {fund_label} 应用 {type_label} 规则，买卖条件与金额设置见本次执行假设。",
+            "本次是指定单只基金的历史规则模拟；结果只代表该基金在所列数据与假设下的表现。",
+        ]
+        default_notes[3] = ("账户每日估值使用该基金截至当日的最近已知净值。缺少当日净值时只延用估值，"
+                            "不因此重复生成交易；境外基金估值还存在公布延迟。")
+        default_notes.append("标记“未成立”的年度没有可投资的基金数据，不回填净值，也不发生投入或交易；年度表显示 —，不作为零收益年份。")
     notes_html = "".join(f"<li>{html.escape(str(note))}</li>" for note in [*default_notes, *assumptions, *warnings])
     data_notes = [str(note) for note in assumptions if "断档" in str(note)]
     for item in metadata.get("missing_corporate_action_nav", []):
@@ -323,7 +351,9 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     data_notice = ('<div class="note data-note"><strong>本次数据边界：</strong>'
                    + '<br>'.join(html.escape(note) for note in dict.fromkeys(data_notes)) + '</div>') if data_notes else ''
     qlab_commit = str(_pick(metadata, "qlab_commit", "source_commit", default="详见数据来源"))
-    title = str(metadata.get("title", "QLab 五类基金组合 · 年度收益回测"))
+    default_title = (f"{fund_label} · {type_label} 单基金回测" if single_fund else
+                     "QLab 五类基金组合 · 年度收益回测")
+    title = str(metadata.get("title", default_title))
     xirr_note = {
         "unique": "XIRR 已找到唯一解。",
         "unique_detected": "完整现金流在数值搜索范围内找到一个 XIRR 解；含多次投入和取出时，不能据此证明不存在其他解。",
@@ -334,9 +364,33 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
     # Large DataFrames used to draw group curves do not belong in provenance text.
     provenance = {k: v for k, v in metadata.items() if k not in {"group_daily"}}
     start = str(metadata.get("requested_start", metadata.get("start_date", dates[0])))[:10]
+    copy = {
+        "EYEBROW": "PORTFOLIO / CALENDAR YEAR EARNINGS",
+        "SUBTITLE": f"按 QLab 各类别规则逐日判断，汇总 {len(fund_rows)} 只基金。先看每年的模拟盈亏金额（含未实现），再看资金使用与风险。",
+        "PNL_TITLE": "组合与各类别 · 累计盈亏和每日盈亏",
+        "PNL_DESCRIPTION": "累计盈亏包含已实现与未实现部分。悬停可查看具体日期和金额，单击图例可隐藏某个类别，双击图例可单独查看。",
+        "NAV_DESCRIPTION": "追加资金不会凭空增加收益，取出资金不会形成亏损。这里评价整个组合，不是对各基金收益率做简单平均，也不是逐笔交易年化曲线。",
+        "GROUP_TITLE": "五类策略分别贡献多少",
+        "GROUP_DESCRIPTION": "各类别保留各自买卖规则和金额设置，未将 Fundd 的卖出规则套用到其他类别。类别之间的 XIRR 不能按行简单平均。",
+        "XIRR_SCOPE": "整个组合",
+        "FOOTER_SCOPE": "portfolio",
+    }
+    if single_fund:
+        copy.update({
+            "EYEBROW": "SINGLE FUND / CALENDAR YEAR EARNINGS",
+            "SUBTITLE": f"对 {fund_label} 按 QLab {type_label} 规则逐日判断，展示单基金策略账户的模拟盈亏（含未实现）、资金使用与风险。",
+            "PNL_TITLE": "单基金策略账户 · 累计盈亏和每日盈亏",
+            "PNL_DESCRIPTION": "累计盈亏包含已实现与未实现部分。悬停可查看具体日期和金额，单击图例可显示或隐藏曲线。",
+            "NAV_DESCRIPTION": "追加资金不会凭空增加收益，取出资金不会形成亏损。这里展示剔除资金流后的策略账户净值，衡量实际策略持仓的收益；与基金本身的分红再投收益曲线分别计算。",
+            "GROUP_TITLE": f"{type_label} 策略账户汇总",
+            "GROUP_DESCRIPTION": f"仅包含指定基金 {fund_label}，采用本次列明的 {type_label} 规则与金额设置。",
+            "XIRR_SCOPE": "完整策略账户",
+            "FOOTER_SCOPE": "single-fund strategy",
+        })
     replacements = {
         "TITLE": html.escape(title), "START": html.escape(start), "END": dates[-1],
-        "FUND_COUNT": str(len(fund_rows)), "CARDS": "".join(cards), "AUDIT": audit_html,
+        "TYPES": html.escape(type_label), "CARDS": "".join(cards), "AUDIT": audit_html,
+        "TYPE_OPTIONS": "".join(f"<option>{html.escape(str(value))}</option>" for value in report_types),
         "YEAR_PLOT": year_plot, "PNL_PLOT": pnl_plot, "NAV_PLOT": nav_plot,
         "FUNDING_PLOT": funding_plot, "ANNUAL_JSON": _json(annual_rows),
         "FUND_JSON": _json(fund_rows), "GROUP_JSON": _json(group_rows),
@@ -344,6 +398,7 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         "PROVENANCE": html.escape(json.dumps(provenance, ensure_ascii=False, indent=2, default=str)),
         "SUMMARY": html.escape(json.dumps(summary, ensure_ascii=False, indent=2, default=str)),
         "XIRR_NOTE": html.escape(xirr_note),
+        **{key: html.escape(value) for key, value in copy.items()},
     }
     document = _TEMPLATE
     for key, value in replacements.items():
@@ -360,21 +415,21 @@ _TEMPLATE = r'''<!doctype html>
 :root{color-scheme:dark;--bg:#091523;--panel:#102035;--border:#263c52;--text:#eef5fd;--muted:#91a7be;--teal:#42dbc5;--gold:#f4c875}*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.65 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}header{border-bottom:1px solid var(--border);background:#0d1d30}.header-inner{max-width:1520px;margin:auto;padding:19px 32px;display:flex;justify-content:space-between;gap:20px}.brand{font-size:20px;font-weight:700}.brand b{color:var(--teal)}nav{display:flex;gap:24px}a{color:#bdd1e5;text-decoration:none}a:hover{color:var(--teal)}main{max-width:1520px;margin:auto;padding:34px 32px 45px}.eyebrow{font-size:11px;color:var(--teal);letter-spacing:3px}h1{font-size:31px;line-height:1.35;margin:12px 0}h2{font-size:18px;margin:0}.sub,.muted{color:var(--muted)}.meta{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 24px}.pill{border:1px solid var(--border);border-radius:5px;padding:4px 9px;font-size:12px;background:#102337;color:#b7cadd}.pill.green{color:var(--teal);border-color:#265e58}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.stat{padding:18px 19px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#14293f,#102035);min-height:143px}.stat-label{font-size:12px;color:#afc5dd}.stat-value{font-size:26px;letter-spacing:-.5px;font-variant-numeric:tabular-nums;margin-top:8px}.stat p{font-size:11px;color:var(--muted);margin:8px 0 0}.note{background:#103039;border-left:2px solid #398c82;padding:12px 15px;color:#b1d4d7;font-size:12px;margin:20px 0}.note strong{color:#e7f9f8}.note.data-note{background:#302a20;border-left-color:#d6ac65;color:#dcc9a9}.panel{background:var(--panel);border:1px solid var(--border);padding:23px 22px 13px;border-radius:10px;margin:22px 0;overflow:hidden}.panel-head{display:flex;justify-content:space-between;gap:20px;align-items:start}.panel-head p{font-size:12px;color:var(--muted);margin:7px 0 12px;max-width:1120px}.panel-index{font:12px monospace;color:#5e7893;padding-top:4px;white-space:nowrap}.plotly-graph-div{width:100%}.table-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}input,select,button{font:inherit;color:#d4e5f6;background:#173149;border:1px solid #3a5269;border-radius:5px;padding:8px 11px;max-width:100%}input{width:300px}button{cursor:pointer}button:hover:not(:disabled){border-color:var(--teal)}button:disabled{opacity:.4;cursor:default}.table-wrap{overflow:auto;max-height:720px}table{width:100%;border-collapse:collapse;font-size:12px}th{padding:11px;background:#172f47;text-align:right;color:#adc3db;font-weight:500;white-space:nowrap;position:sticky;top:0;z-index:1}td{padding:11px;border-bottom:1px solid #243a50;color:#bfd0e2;white-space:nowrap;font-variant-numeric:tabular-nums;text-align:right}th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:#14283d}th:first-child{z-index:2;background:#172f47}td.positive{color:var(--teal)}td.negative{color:#ff9b91}.primary{font-weight:700;font-size:13px}td.text{text-align:left}td.name{max-width:250px;overflow:hidden;text-overflow:ellipsis;text-align:left}td.note-cell{white-space:normal;min-width:200px;max-width:400px;text-align:left;font-size:11px}tr.partial td:first-child{color:var(--gold)}.table-note{font-size:11px;color:var(--muted);margin:12px 0 4px}.pagination{display:flex;justify-content:space-between;gap:12px;align-items:center;margin:15px 0 7px;font-size:12px;color:var(--muted)}.pagination div{display:flex;gap:9px;align-items:center}.formula{font:13px ui-monospace,SFMono-Regular,monospace;background:#0c1a2a;color:#d6e9f7;border:1px solid #243f58;padding:14px;overflow:auto;margin:12px 0}ul.notes{font-size:12px;color:#abc0d5;padding-left:22px}ul.notes li{padding:5px 0}details{border-top:1px solid var(--border);padding:15px 0}summary{cursor:pointer;color:#bbd1e6;font-size:12px}pre{font:11px/1.5 ui-monospace,SFMono-Regular,monospace;overflow:auto;max-height:380px;background:#0c1a2a;padding:15px;color:#b4cbe0}footer{font-size:11px;color:#7891ab;display:flex;justify-content:space-between;gap:20px}.audit{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}.audit div{font-size:12px;color:var(--muted);border-bottom:1px solid var(--border);padding:10px 0}.audit b{display:block;color:#d6e6f5;margin-top:4px;font-size:16px;font-weight:500}.split-panels{display:grid;grid-template-columns:1fr 1fr;gap:20px}.split-panels>.panel{min-width:0}@media(max-width:1150px){.stats{grid-template-columns:repeat(2,1fr)}.split-panels{display:block}}@media(max-width:750px){.audit{grid-template-columns:repeat(2,1fr)}nav{display:none}.header-inner{padding:16px 18px}main{padding:25px 14px}.stat{padding:15px}.stat-value{font-size:23px}.panel{padding:18px 10px 10px}h1{font-size:25px}.panel-index{display:none}.pagination{align-items:start;flex-direction:column}footer{flex-direction:column;gap:5px}.table-controls{gap:7px}input{width:100%}.panel-head{padding:0 3px}}@media(max-width:380px){.stat-value{font-size:20px}.stats{gap:8px}.stat{padding:12px}}
 </style></head><body>
 <header><div class="header-inner"><div class="brand"><b>α</b> AlphaTrack</div><nav><a href="#annual">每年赚多少</a><a href="#pnl">盈亏曲线</a><a href="#members">基金明细</a><a href="#method">回测口径</a></nav></div></header>
-<main><div class="eyebrow">PORTFOLIO / CALENDAR YEAR EARNINGS</div><h1>{{TITLE}}</h1><p class="sub">按 QLab 各类别规则逐日判断，汇总 {{FUND_COUNT}} 只基金。先看每年的模拟盈亏金额（含未实现），再看资金使用与风险。</p>
-<div class="meta"><span class="pill green">Fundb · Fundc · Fundd · Fundf_1 · Fundg</span><span class="pill">{{START}} → {{END}}</span><span class="pill">无资金上限 · 按需投入</span><span class="pill">卖出款取出</span><span class="pill">人民币 · CNY</span></div>
+<main><div class="eyebrow">{{EYEBROW}}</div><h1>{{TITLE}}</h1><p class="sub">{{SUBTITLE}}</p>
+<div class="meta"><span class="pill green">{{TYPES}}</span><span class="pill">{{START}} → {{END}}</span><span class="pill">无资金上限 · 按需投入</span><span class="pill">卖出款取出</span><span class="pill">人民币 · CNY</span></div>
 <section class="stats">{{CARDS}}</section>{{DATA_NOTICE}}
 <div class="note"><strong>年度收益怎么看：</strong>年度盈亏包含该年已实现收益与持仓浮盈亏的变化。<strong>投入不算盈利，卖出取回的本金也不算盈利。</strong>期末持仓没有强制卖出。XIRR 与净值年化衡量不同问题，不能与逐批年化均值混用。</div>
 <section class="panel" id="annual"><div class="panel-head"><div><h2>每年模拟盈利 / 亏损多少</h2><p>每根柱子对应一个自然年内的盈亏金额。年中开始的首年注明月日范围；YTD 是当年年初至截止日，均未外推为全年。</p></div><span class="panel-index">01 / YEARLY EARNINGS</span></div>{{YEAR_PLOT}}
-<div class="table-controls"><button id="export-years">导出年度明细 CSV</button><span class="muted" style="font-size:12px">金额单位：元；表格可横向滚动</span></div><div class="table-wrap"><table><thead id="annual-head"></thead><tbody id="annual-body"></tbody></table></div><p class="table-note">已实现/未实现分解采用加权平均成本；“当年未实现变化”指期末浮盈亏减期初浮盈亏，并非期末浮盈亏余额。年度盈亏与净值收益可能方向不同：金额盈亏受投入规模和时点影响，净值收益按各阶段收益连乘。年度 XIRR 把年初持仓市值视为期初投入，因此和整个组合的 XIRR 不可直接平均。{{XIRR_NOTE}}</p></section>
-<section class="panel" id="pnl"><div class="panel-head"><div><h2>组合与各类别 · 累计盈亏和每日盈亏</h2><p>累计盈亏包含已实现与未实现部分。悬停可查看具体日期和金额，单击图例可隐藏某个类别，双击图例可单独查看。</p></div><span class="panel-index">02 / P&amp;L</span></div>{{PNL_PLOT}}</section>
-<section class="panel"><div class="panel-head"><div><h2>剔除资金流后的单位净值与回撤</h2><p>追加资金不会凭空增加收益，取出资金不会形成亏损。这里评价整个组合，不是对各基金收益率做简单平均，也不是逐笔交易年化曲线。</p></div><span class="panel-index">03 / RETURN &amp; RISK</span></div>{{NAV_PLOT}}</section>
+<div class="table-controls"><button id="export-years">导出年度明细 CSV</button><span class="muted" style="font-size:12px">金额单位：元；表格可横向滚动</span></div><div class="table-wrap"><table><thead id="annual-head"></thead><tbody id="annual-body"></tbody></table></div><p class="table-note">已实现/未实现分解采用加权平均成本；“当年未实现变化”指期末浮盈亏减期初浮盈亏，并非期末浮盈亏余额。年度盈亏与净值收益可能方向不同：金额盈亏受投入规模和时点影响，净值收益按各阶段收益连乘。年度 XIRR 把年初持仓市值视为期初投入，因此和{{XIRR_SCOPE}}的 XIRR 不可直接平均。{{XIRR_NOTE}}</p></section>
+<section class="panel" id="pnl"><div class="panel-head"><div><h2>{{PNL_TITLE}}</h2><p>{{PNL_DESCRIPTION}}</p></div><span class="panel-index">02 / P&amp;L</span></div>{{PNL_PLOT}}</section>
+<section class="panel"><div class="panel-head"><div><h2>剔除资金流后的单位净值与回撤</h2><p>{{NAV_DESCRIPTION}}</p></div><span class="panel-index">03 / RETURN &amp; RISK</span></div>{{NAV_PLOT}}</section>
 <section class="panel"><div class="panel-head"><div><h2>投入、取出与剩余资产</h2><p>累计取出包含回收本金。总盈亏可以由「剩余资产 + 累计取出 − 累计投入」复核；无资金上限并不代表没有资金占用。</p></div><span class="panel-index">04 / CAPITAL</span></div><div class="audit">{{AUDIT}}</div>{{FUNDING_PLOT}}</section>
-<section class="panel"><div class="panel-head"><div><h2>五类策略分别贡献多少</h2><p>各类别保留各自买卖规则和金额设置，未将 Fundd 的卖出规则套用到其他类别。类别之间的 XIRR 不能按行简单平均。</p></div><span class="panel-index">05 / GROUPS</span></div><div class="table-wrap"><table><thead id="group-head"></thead><tbody id="group-body"></tbody></table></div></section>
+<section class="panel"><div class="panel-head"><div><h2>{{GROUP_TITLE}}</h2><p>{{GROUP_DESCRIPTION}}</p></div><span class="panel-index">05 / GROUPS</span></div><div class="table-wrap"><table><thead id="group-head"></thead><tbody id="group-body"></tbody></table></div></section>
 <section class="panel" id="members"><div class="panel-head"><div><h2>基金明细与数据覆盖</h2><p>每只基金按实际可用数据参与。净值开始日期不等于第一次买入日期；较晚成立的基金不会出现在早期持仓中。支持按类别筛选、盈亏排序和 CSV 导出。</p></div><span class="panel-index">06 / HOLDINGS</span></div>
-<div class="table-controls"><input id="fund-search" aria-label="搜索基金" placeholder="搜索代码 / 基金名称…"><select id="fund-group" aria-label="基金类别"><option value="">全部类别</option><option>Fundb</option><option>Fundc</option><option>Fundd</option><option>Fundf_1</option><option>Fundg</option></select><select id="fund-sort" aria-label="基金排序"><option value="group">类别 / 代码</option><option value="profit_desc">累计盈亏 ↓</option><option value="profit_asc">累计盈亏 ↑</option><option value="contributions">累计投入 ↓</option></select><button id="export-funds">导出筛选 CSV</button></div>
+<div class="table-controls"><input id="fund-search" aria-label="搜索基金" placeholder="搜索代码 / 基金名称…"><select id="fund-group" aria-label="基金类别"><option value="">全部类别</option>{{TYPE_OPTIONS}}</select><select id="fund-sort" aria-label="基金排序"><option value="group">类别 / 代码</option><option value="profit_desc">累计盈亏 ↓</option><option value="profit_asc">累计盈亏 ↑</option><option value="contributions">累计投入 ↓</option></select><button id="export-funds">导出筛选 CSV</button></div>
 <div class="table-wrap"><table><thead id="fund-head"></thead><tbody id="fund-body"></tbody></table></div><div class="pagination"><span id="fund-count"></span><div><button id="prev-page">上一页</button><span id="page-label"></span><button id="next-page">下一页</button></div></div></section>
 <section class="panel" id="method"><div class="panel-head"><div><h2>口径、假设与可复核记录</h2><p>QLab 规则版本：<code>{{COMMIT}}</code>。该报告是历史规则模拟结果，数据覆盖和交易假设都会影响结果。</p></div><span class="panel-index">07 / AUDIT</span></div><div class="formula">当年盈亏 = 年末资产 − 年初资产 − 当年投入 + 当年取出<br>累计盈亏 = 期末资产 + 累计取出 − 累计投入</div><ul class="notes">{{NOTES}}</ul><details><summary>展开完整指标及 XIRR 求解状态</summary><pre>{{SUMMARY}}</pre></details><details><summary>展开规则、数据来源与执行假设</summary><pre>{{PROVENANCE}}</pre></details></section>
-<footer><span>AlphaTrack · Calendar-year portfolio analysis</span><span>数据截至 {{END}} · Plotly 单文件离线报告</span></footer></main>
+<footer><span>AlphaTrack · Calendar-year {{FOOTER_SCOPE}} analysis</span><span>数据截至 {{END}} · Plotly 单文件离线报告</span></footer></main>
 <script>
 const annualRows={{ANNUAL_JSON}},allFunds={{FUND_JSON}},groupRows={{GROUP_JSON}};
 const el=id=>document.getElementById(id),valid=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v));

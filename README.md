@@ -34,6 +34,19 @@ python scripts/render_fund_curve.py --data data/single/519981/20261111/519981.cs
 
 分红只使用除息日，现金换算为元/份，份额折算归一为1:x；新遇到除息日缺净值、重复事件、基金身份不符或净值注释未匹配时停止处理。标准化曲线与原QLab计算器逐点核验，通过后输出离线HTML和PNG。原始响应、净值和报告只保存在本地，不上传GitHub。`--rule`在预览阶段仅记录下一步所需规则，不会运行交易。
 
+用户明确确认这份曲线后，使用**同一数据快照**回测：
+
+```bash
+python scripts/backtest_single_fund.py --data data/single/519981/20261111/519981.csv --rule Fundg --curve-confirmed --output reports/single_519981_fundg_2010.html
+python scripts/verify_portfolio.py --report reports/single_519981_fundg_2010.html
+# 对本次519981的Fundg结果做独立Decimal信号、分红、账本及XIRR核算
+python scripts/verify_single_fundg.py
+```
+
+`--curve-confirmed`仅在用户已核对该快照时使用；数据或原QLab计算器哈希不一致会拒绝运行。单基金入口复用原买卖引擎与包含提款的XIRR计算，支持 Fundg、Fundf_1，以及明确给定 `--category` 的 Fundd；Fundb/c 需要同类排名池，不能把一只基金伪装成有效排名池。起点默认2010-01-01，截止默认已核对快照的最后净值日。
+
+Fundg 保持近一年高低位置≤60%时买10元、不卖出的原规则（不足一年时使用已有历史）。结果输出年度盈亏、投入、期末资产、交易、FIFO、信号和账户曲线；`.paste_with_header_wan.tsv` 为“累计本金、累计盈亏、XIRR、TWR、回撤、夏普、波动率、2010年至今各年盈亏”的两行表头/数据，`.paste_2010_wan.tsv` 为仅数据的一行，金额单位万元。`.annual_yuan.tsv` 和 `.table.md` 保留元口径，避免单基金小额年度盈亏被万元舍入掩盖。2010等成立前年份显示“未成立/—”，原始账本不补造净值。
+
 ## QLab 五类基金组合回测
 
 新增 `Fundb + Fundc + Fundd + Fundf_1 + Fundg` 共63只基金组合，从 **2010-01-01** 空仓开始，到共同净值截止 **2026-11-06**。直接加载固定版本 QLab 的原始评分、排名和买卖函数，不重新发明策略。资金无限追加，卖出净回款立即取出，金额采用各类别原配置。

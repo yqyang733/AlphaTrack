@@ -56,3 +56,32 @@ def test_offline_report_preserves_calendar_earnings_and_escapes_metadata(tmp_pat
     else:
         assert "Fundb、Fundc 按原综合评分排名买入" in document
         assert "Fundb、Fundc 每日随机选8/5只" not in document
+
+
+def test_single_fund_scope_and_pre_inception_year(tmp_path):
+    daily = pd.DataFrame({"date": pd.to_datetime(["2011-04-08", "2011-12-30"]),
+                          "equity": [100., 105.], "daily_pnl": [0., 5.],
+                          "unit_nav": [1., 1.05]})
+    annual = [dict(year=2010, year_status="not_incepted", profit=0.,
+                   contributions=0., twr_return=0., max_drawdown=0.),
+              dict(year=2011, profit=5., contributions=100., twr_return=.05)]
+    funds = [dict(code="519981", name="测试 <基金>", asset_type="Fundg")]
+    path = render_portfolio_report(
+        daily, annual, funds, funds, {},
+        {"scope": "single_fund", "types": ["Fundg"], "code": "519981",
+         "name": "测试 <基金>", "start_date": "2010-01-01",
+         "assumptions": ["本次假设 <严格沿用>"]}, tmp_path / "single.html")
+    document = path.read_text()
+    rows = json.loads(re.search(r"const annualRows=(.*?),allFunds=", document).group(1))
+    assert rows[0]["period"] == "2010（未成立）"
+    assert rows[0]["year_status"] == "not_incepted"
+    assert all(rows[0][key] is None for key in ["profit", "contributions", "twr_return", "max_drawdown"])
+    assert rows[1]["profit"] == 5. and rows[1]["twr_return"] == .05
+    assert annual[0]["profit"] == 0.  # Display treatment does not alter the source ledger.
+    assert '<span class="pill green">Fundg</span>' in document
+    assert '<option>Fundg</option>' in document and '<option>Fundb</option>' not in document
+    assert "519981 测试 &lt;基金&gt;" in document
+    assert "本次假设 &lt;严格沿用&gt;" in document
+    assert "Fundg 策略账户汇总" in document and "策略账户单位净值" in document
+    assert "五类" not in document and "本次 QLab 名单" not in document
+    assert "Fundb、Fundc" not in document and "{{" not in re.sub(r"<script.*?</script>", "", document, flags=re.S)
