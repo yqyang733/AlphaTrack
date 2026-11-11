@@ -44,6 +44,7 @@ def reviewed_snapshot(tmp_path):
     ("changed_csv", True, "previously reviewed QLab-compatible curve"),
     ("nonfinite_parity", True, "previously reviewed QLab-compatible curve"),
     ("negative_parity", True, "previously reviewed QLab-compatible curve"),
+    ("diagnostic_only", True, "unresolved data gaps"),
 ])
 def test_unreviewed_or_changed_snapshot_cannot_generate_results(
         reviewed_snapshot, tmp_path, monkeypatch, failure, confirmed, message):
@@ -51,10 +52,13 @@ def test_unreviewed_or_changed_snapshot_cannot_generate_results(
         changed = pd.read_csv(reviewed_snapshot)
         changed.loc[len(changed) - 1, "nav"] = .86  # Still valid data, but not the reviewed curve.
         changed.to_csv(reviewed_snapshot, index=False)
-    elif failure in {"nonfinite_parity", "negative_parity"}:
+    elif failure in {"nonfinite_parity", "negative_parity", "diagnostic_only"}:
         path = reviewed_snapshot.with_suffix(".metadata.json")
         metadata = json.loads(path.read_text())
-        metadata["qlab_max_absolute_error"] = float("nan") if failure == "nonfinite_parity" else -1.
+        if failure == "diagnostic_only":
+            metadata["backtest_allowed"] = False
+        else:
+            metadata["qlab_max_absolute_error"] = float("nan") if failure == "nonfinite_parity" else -1.
         path.write_text(json.dumps(metadata))
     output = tmp_path / "should_not_exist" / "report"
 

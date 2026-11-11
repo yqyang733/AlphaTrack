@@ -58,7 +58,7 @@ def limits(values, *, zero=False):
     return low, high, np.arange(low, high+step*.1, step)
 
 
-def render_png(frame, title, output, font_path):
+def render_png(frame, title, output, font_path, warning=''):
     width, height = 1800, 1170
     canvas = Image.new('RGB', (width, height), BG)
     draw = ImageDraw.Draw(canvas)
@@ -74,7 +74,8 @@ def render_png(frame, title, output, font_path):
             size -= 1
         return size
     text(62, 37, title, fit(title, 1676, 40))
-    text(64, 103, NOTE, 26, BLUE)
+    text(64, 103, '诊断预览 · 历史分红缺净值，尚不可用于正式回测' if warning else NOTE,
+         26, '#b54a28' if warning else BLUE)
     first, last = frame.date.iloc[0], frame.date.iloc[-1]
     growth = (frame.total_return_index.to_numpy()-1)*100
     days = (frame.date-first).dt.total_seconds().to_numpy()/86400
@@ -118,7 +119,8 @@ def render_png(frame, title, output, font_path):
     draw.ellipse((1330,739,1342,751),fill=ORANGE);text(1355,731,'分红日',21,MUTED)
     draw.ellipse((1500,739,1512,751),fill=PURPLE);text(1525,731,'份额折算日',21,MUTED)
     text(64, 1081, 'QLab口径：首个真实净值日为0%；现金分红按除息日净值再投，份额折算同步调整。', 22, MUTED)
-    text(64, 1120, '仅核对基金收益曲线；未生成交易信号、未运行 Fundg 或其他策略。', 22, MUTED)
+    text(64, 1120, warning or '仅核对基金收益曲线；未生成交易信号、未运行 Fundg 或其他策略。',
+         22, '#b54a28' if warning else MUTED)
     canvas.save(output, optimize=True)
 
 
@@ -136,6 +138,9 @@ def render(data, output, font=None):
     code = str(metadata.get('code') or data.stem)
     name = str(metadata.get('name') or metadata.get('fund_name') or '')
     title = f'{code} {name} · 分红再投收益曲线'.strip()
+    warning = str(metadata.get('curve_warning') or '')
+    notice = '诊断预览 · 历史分红缺净值，尚不可用于正式回测' if warning else NOTE
+    warning_html = (f'<p style="color:#b54a28;font-weight:650">{html.escape(warning)}</p>' if warning else '')
     dates = frame.date.dt.strftime('%Y-%m-%d').tolist()
     returns = ((frame.total_return_index-1)*100).to_numpy()
     events = frame[frame.dividend.ne(0)|frame.split.ne(1)]
@@ -170,7 +175,7 @@ def render(data, output, font=None):
     png=output.with_suffix('.png')
     document=f'''<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{html.escape(title)}</title><style>body{{margin:0;background:{BG};color:{INK};font:16px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}}main{{max-width:1400px;margin:auto;padding:26px 24px}}h1{{font-size:29px;margin:0}}.notice{{color:{BLUE};font-weight:650;margin:10px 0}}.meta,.notes{{color:{MUTED};font-size:14px}}.chart{{background:white;border:1px solid {GRID};border-radius:12px;padding:8px;margin:20px 0}}a{{color:{BLUE}}}table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}th,td{{border-bottom:1px solid {GRID};padding:8px 12px;text-align:right}}th:first-child,td:first-child{{text-align:left}}code{{overflow-wrap:anywhere}}@media(max-width:600px){{main{{padding:18px 10px}}h1{{font-size:23px}}.chart{{padding:0}}}}</style></head><body><main>
-<h1>{html.escape(title)}</h1><p class="notice">{NOTE}</p>
+<h1>{html.escape(title)}</h1><p class="notice">{notice}</p>{warning_html}
 <p class="meta">{dates[0]} 至 {dates[-1]} · {len(frame):,} 条真实净值 · 累计收益率 {returns[-1]:+.2f}% · 末日单位净值 {frame.nav.iloc[-1]:.6f} 元</p>
 <p><a href="{quote(png.name)}" download>下载高清PNG</a>　{source_link}</p><div class="chart">{fragment}</div>
 <p class="notes">QLab口径：首个真实净值日累计收益率为0%；现金分红按除息日单位净值转换为新增份额继续持有，份额折算同步调整。主图为基金本身的分红再投累计收益率，副图为未复权的原始单位净值。按真实净值观察日绘图，未补造缺失净值。</p>
@@ -178,7 +183,7 @@ def render(data, output, font=None):
 <details><summary>分红与份额折算记录（{len(events)}条）</summary><table><thead><tr><th>除息/折算日</th><th>单位净值</th><th>每份现金分红（元）</th><th>份额倍数</th></tr></thead><tbody>{rows or '<tr><td colspan="4">当前输入没有分红或折算记录</td></tr>'}</tbody></table></details>
 <p class="meta">输入CSV SHA256：<code>{digest}</code></p></main></body></html>'''
     output.parent.mkdir(parents=True,exist_ok=True)
-    render_png(frame,title,png,font_path)
+    render_png(frame,title,png,font_path,warning)
     output.write_text(document,encoding='utf-8')
     return {'html':str(output),'png':str(png),'rows':len(frame),'first_date':dates[0],'last_date':dates[-1],
             'cumulative_return':float(returns[-1]/100),'dividend_events':int(frame.dividend.ne(0).sum()),'split_events':int(frame.split.ne(1).sum()),'data_sha256':digest}

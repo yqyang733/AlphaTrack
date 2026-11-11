@@ -66,6 +66,8 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         raise ValueError("Fundb/Fundc require an explicitly defined ranking peer universe")
     data, output = Path(data).resolve(), Path(output).resolve()
     frame, source_meta = load_data(data)
+    if source_meta.get("backtest_allowed") is False:
+        raise ValueError("Diagnostic curve has unresolved data gaps and cannot be backtested")
     digest = hashlib.sha256(data.read_bytes()).hexdigest()
     parity_error = source_meta.get("qlab_max_absolute_error")
     valid_parity = (type(parity_error) in (int, float) and np.isfinite(parity_error)
