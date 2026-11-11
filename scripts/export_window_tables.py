@@ -1,6 +1,7 @@
 """Export a window report as copyable annual/metric tables in ten thousand yuan."""
 import argparse
 import csv
+from decimal import Decimal, ROUND_HALF_UP
 import io
 import json
 from pathlib import Path
@@ -20,7 +21,8 @@ def formatted(value, kind='money'):
     if value is None:
         return '—'
     if kind == 'money':
-        return f'{value / 10000:.2f}'
+        amount = (Decimal(str(value)) / Decimal('10000')).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        return f'{amount:.2f}'
     if kind == 'percent':
         return f'{value * 100:.2f}%'
     return f'{value:.2f}'

@@ -8,6 +8,12 @@ import pytest
 from alphatrack.data import load_data
 from alphatrack.strategies.qlab import QLabRules
 from scripts import backtest_single_fund
+from scripts.export_window_tables import formatted
+
+
+@pytest.mark.parametrize('yuan,expected', [(5750, '0.58'), (5749.99, '0.57'), (-5750, '-0.58')])
+def test_wan_money_rounding_preserves_decimal_halfway_values(yuan, expected):
+    assert formatted(yuan) == expected
 
 
 @pytest.fixture
