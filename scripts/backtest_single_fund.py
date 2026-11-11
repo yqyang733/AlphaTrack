@@ -1,8 +1,8 @@
 """Run one fund only after its exact dividend-reinvested curve is confirmed.
 
 Uses the existing QLab rules, next-NAV engine and cash-flow portfolio metrics.
-Ranking strategies require a peer universe. An explicit single-fund Fundb
-override buys 40 yuan on each eligible observation without peer ranking.
+Ranking strategies require a peer universe. Explicit fixed-daily overrides
+replace the original entry conditions with a user-specified purchase amount.
 """
 import argparse
 from dataclasses import asdict
@@ -61,12 +61,21 @@ def export_tables(output, annual, summary, warnings=()):
 
 
 def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=False, category=None,
-        fundb_daily_buy=False):
+        fundb_daily_buy=False, daily_buy_amount=None):
     if not curve_confirmed:
         raise ValueError("User must confirm this snapshot's curve before backtesting")
     if fundb_daily_buy and rule != "Fundb":
         raise ValueError("fundb_daily_buy applies only to single-fund Fundb")
-    if rule == "Fundb" and not fundb_daily_buy:
+    if fundb_daily_buy and daily_buy_amount is not None:
+        raise ValueError("Use either fundb_daily_buy or daily_buy_amount, not both")
+    if daily_buy_amount is not None:
+        if isinstance(daily_buy_amount, bool) or not isinstance(daily_buy_amount, (int, float)) or not np.isfinite(daily_buy_amount) or daily_buy_amount <= 0:
+            raise ValueError("daily_buy_amount must be finite and positive")
+        if rule not in {"Fundb", "Fundg"}:
+            raise ValueError("daily_buy_amount supports only explicitly selected Fundb or Fundg snapshots")
+    fixed_amount = 40 if fundb_daily_buy else daily_buy_amount
+    daily_fixed = fixed_amount is not None
+    if rule == "Fundb" and not daily_fixed:
         raise ValueError("Single-fund Fundb requires explicit fundb_daily_buy; no ranking peer universe was supplied")
     if rule not in {"Fundb", "Fundd", "Fundf_1", "Fundg"}:
         raise ValueError("Fundb/Fundc require an explicitly defined ranking peer universe")
@@ -98,29 +107,29 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
                  category=category or "用户指定单基金", trade_mode="场外")
     key = asset_key(asset)
     user_override = None
-    if fundb_daily_buy:
+    if daily_fixed:
         prepared = frame[frame.date <= terminal].copy()
         prepared["trade_enabled"] = prepared.date.dt.dayofweek < 5
         active_buy = prepared.trade_enabled & (prepared.date >= pd.Timestamp(start))
         prepared["action"] = np.where(active_buy, "BUY", "HOLD")
-        prepared["amount"] = np.where(active_buy, 40.0, np.nan)
+        prepared["amount"] = np.where(active_buy, fixed_amount, np.nan)
         prepared["fraction"] = np.nan
         prepared["rank"] = np.nan
         prepared["score"] = np.nan
-        prepared["reason"] = np.where(active_buy, "用户指定单基金Fundb：每个交易日买入40元，不排名",
+        prepared["reason"] = np.where(active_buy, f"用户指定单基金每日定投：每个交易日买入{fixed_amount:g}元，无买入门槛",
                                       "不生成买入：起点之前或非交易日，仅估值")
-        user_override = dict(mode="daily_fixed", amount=40, ranking=False,
+        user_override = dict(mode="daily_fixed", amount=fixed_amount, ranking=False, threshold_applied=False,
                              calendar="weekday_nav", sell=False,
                              execution="next enabled NAV; valuation-only dates retain pending orders")
         signal_metadata = dict(selection_algorithm="user-defined-single-fund-daily-fixed",
-                               ranking=False, amount=40,
+                               ranking=False, amount=fixed_amount, threshold_applied=False,
                                nontrading_nav_dates=prepared.loc[~prepared.trade_enabled, "date"].dt.strftime("%Y-%m-%d").tolist())
     else:
         signals, signal_metadata = rules.build_signals({asset["code"]: frame}, [asset], start=start, end=terminal)
         prepared = signals[key]
     cfg = EngineConfig(initial_cash=0, funding_mode="topup", withdraw_on_sell=True,
                        start=start, end=str(terminal.date()), buy_fee=0, sell_fee=0,
-                       trade_calendar_column="trade_enabled" if fundb_daily_buy else None)
+                       trade_calendar_column="trade_enabled" if daily_fixed else None)
     component, trades = run_backtest(prepared, QLabSignalStrategy(prepared), cfg)
     for field in ("code", "name", "asset_type"):
         component[field] = asset[field]
@@ -136,7 +145,7 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
     funds = pd.DataFrame([{**asset, **summary, "first_nav_date": source_meta["first_date"]}])
     groups = pd.DataFrame([{**summary, "asset_type": rule, "name": rule, "fund_count": 1}])
     signal_metadata.update(universe="one user-selected fund; no peer ranking used")
-    if not fundb_daily_buy:
+    if not daily_fixed:
         signal_metadata["selection_algorithm"] = "original-qlab-independent-fund-rule"
     assumptions = [
         f"用户指定 {asset['code']} {asset['name']}，采用 QLab 原 {rule} 买卖规则。",
@@ -149,13 +158,13 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         "XIRR按实际日期ACT/365计算；TWR年化从首次投入日起ACT/365.25计算。",
         "风险指标按252净值观察期/年，无风险利率0；未建模QDII实际公布时刻、确认到账延迟和限购。",
     ]
-    if rule == "Fundg":
+    if rule == "Fundg" and not daily_fixed:
         assumptions.insert(1, "Fundg：分红再投曲线的近一年高低位置≤60%时，每次买10元；原规则没有卖出。高低位置采用已有历史，不要求先等待完整一年。")
-    if fundb_daily_buy:
-        assumptions[0] = f"用户指定 {asset['code']} {asset['name']}，单基金 Fundb 每个交易日买入40元，不参与排名，不卖出。"
-        assumptions[3] = "有真实净值的周一至周五作为可执行交易日；当日产生40元买入信号，下一可执行净值成交。周末保留待成交订单，只计算估值与分红；末日新信号不虚构成交。"
+    if daily_fixed:
+        assumptions[0] = f"用户指定 {asset['code']} {asset['name']}，每个交易日固定买入{fixed_amount:g}元，无买入门槛，不参与排名，不卖出。"
+        assumptions[3] = f"有真实净值的周一至周五作为可执行交易日；当日产生{fixed_amount:g}元买入信号，下一可执行净值成交。周末保留待成交订单，只计算估值与分红；末日新信号不虚构成交。"
         assumptions.insert(1, "这是用户明确设定的单基金固定买入规则；基金净值与分红再投资计算沿用QLab口径。")
-    display_rule = "Fundb 每日40元" if fundb_daily_buy else rule
+    display_rule = f"每日{fixed_amount:g}元定投" if daily_fixed else rule
     metadata = dict(scope="single_fund", title=f"{asset['code']} · {asset['name']} · {display_rule} 单基金回测",
                     code=asset["code"], name=asset["name"], types=[rule], fund_count=1,
                     start_date=start, end_date=cfg.end, curve_confirmed_by_user=True,
@@ -165,7 +174,7 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
                     signal_metadata=signal_metadata, assumptions=assumptions,
                     warnings=source_meta.get("warnings", []),
                     approved_omissions=source_meta.get("approved_omissions", []),
-                    strategy={"name": rule, "scope": "single_fund", **({"selection_mode": "daily_fixed"} if fundb_daily_buy else {})},
+                    strategy={"name": rule, "scope": "single_fund", **({"selection_mode": "daily_fixed"} if daily_fixed else {})},
                     validation={"annual_pnl_sum": float(annual.profit.sum()),
                                 "fund_pnl_sum": summary["total_pnl"], "group_pnl_sum": summary["total_pnl"],
                                 "fifo_pnl_sum": lot_summary["total_pnl"],
@@ -202,6 +211,8 @@ if __name__ == "__main__":
     parser.add_argument("--category", help="Fundd: 基金>宽基指数 selects the original broad-index amount")
     parser.add_argument("--curve-confirmed", action="store_true", help="Use only after the user confirms this exact snapshot's curve")
     parser.add_argument("--fundb-daily-buy", action="store_true", help="User-specified single-fund Fundb: 40 yuan each weekday NAV, no ranking or sales")
+    parser.add_argument("--daily-buy-amount", type=float, help="Explicit fixed daily purchase amount, replacing the selected Fundb/Fundg entry conditions")
     args = parser.parse_args()
     run(args.data, args.rule, args.output, start=args.start, end=args.end,
-        curve_confirmed=args.curve_confirmed, category=args.category, fundb_daily_buy=args.fundb_daily_buy)
+        curve_confirmed=args.curve_confirmed, category=args.category, fundb_daily_buy=args.fundb_daily_buy,
+        daily_buy_amount=args.daily_buy_amount)

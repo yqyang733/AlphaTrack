@@ -59,6 +59,16 @@ python scripts/verify_single_fundb_daily.py --data data/single/003358/20261111/0
 
 003358本次确认快照SHA256为 `9634e64c303877cd4c07441bb7f5f85daa37b08c14e52006a08f8295e541c2bf`，2016-09-27至2026-11-10共2447条净值，其中7条为周末披露。报告用 `user_rule_override` 记录每日40元、不排名的用户规则，避免将其标成原QLab排名策略。数据与报告只保存在本地。
 
+用户明确改为每日固定金额时，可对已确认的Fundb/Fundg快照传入 `--daily-buy-amount`，替换原买入条件；不同时使用 `--fundb-daily-buy`。例如270042改为每个交易日10元、无60%位置门槛、不卖出，保留原快照并使用单独的报告路径：
+
+```bash
+python scripts/backtest_single_fund.py --data data/single/270042/20261111/270042.csv --rule Fundg --daily-buy-amount 10 --curve-confirmed --output reports/single_270042_daily10_2010.html
+python scripts/verify_portfolio.py --report reports/single_270042_daily10_2010.html
+python scripts/verify_single_fundb_daily.py --data data/single/270042/20261111/270042.csv --report-prefix reports/single_270042_daily10_2010 --amount 10 --rule Fundg --require-report
+```
+
+审计脚本保留默认40元/Fundb兼容，`--amount` 和 `--rule` 显式选择本次金额及类别。报告的 `daily_fixed` 与 `threshold_applied=false` 标记固定投入规则；原Fundg报告及不带覆盖参数的行为保持不变。
+
 096001 的用户确认例外仅为 **2015-01-19 每份0.0187元现金分红**：该除息日缺净值，本次暂不计入，其余12笔正常处理。`configs/096001_fundg_omissions.json` 保存这项明确授权；处理器逐项匹配基金、日期、类型、金额，只允许省略缺少除息日净值的指定事件。如果日后补齐该日真实净值，旧例外会拒绝执行，须重新核对曲线。原始13笔记录继续保留，报告展示该项说明。
 
 ```bash

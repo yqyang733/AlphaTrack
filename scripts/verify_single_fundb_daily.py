@@ -1,9 +1,10 @@
-"""Independent Decimal audit of the user's single-fund daily-40-yuan rule.
+"""Independent Decimal audit of a user's single-fund fixed daily purchase rule.
 
 All real NAV rows remain valuation observations. Only Monday-Friday NAV rows
-can emit BUY 40 signals or execute a pending order; weekends retain the order
+can emit fixed-amount BUY signals or execute a pending order; weekends retain the order
 for the next eligible NAV. This is the explicitly requested single-fund
-override, not the original QLab Fundb peer-ranking strategy.
+override, without peer ranking or a price-position threshold. Defaults preserve
+the daily-40-yuan Fundb audit; --amount and --rule select other explicit overrides.
 """
 import argparse
 from datetime import date
@@ -23,7 +24,18 @@ ZERO, ONE = D(0), D(1)
 getcontext().prec = 40
 
 
-def calculate(path):
+def positive_amount(value):
+    try:
+        amount = D(str(value))
+    except (InvalidOperation, ValueError, TypeError) as exc:
+        raise ValueError("Daily amount must be a finite positive number") from exc
+    if not amount.is_finite() or amount <= ZERO:
+        raise ValueError("Daily amount must be a finite positive number")
+    return amount
+
+
+def calculate(path, amount=D("40")):
+    amount = positive_amount(amount)
     raw = rows(path)
     dates = [date.fromisoformat(row["date"]) for row in raw]
     assert dates == sorted(set(dates))
@@ -51,7 +63,7 @@ def calculate(path):
             unit_price = balance * nav / account_units
         flow = ZERO
         if trade_enabled and pending is not None:
-            flow = D(40)
+            flow = amount
             quantity = flow / nav
             balance += quantity
             contribution += flow
@@ -82,7 +94,7 @@ def calculate(path):
                       "daily_pnl": day_profit, "cumulative_pnl": profit,
                       "total_contributions": contribution, "unit_nav": unit_price})
         signals.append({"date": day.isoformat(), "action": "BUY" if trade_enabled else "HOLD",
-                        "amount": D(40) if trade_enabled else None, "trade_enabled": trade_enabled})
+                        "amount": amount if trade_enabled else None, "trade_enabled": trade_enabled})
         if trade_enabled:
             pending = day
         previous_nav = nav
@@ -104,6 +116,7 @@ def calculate(path):
                         "final_equity": daily[-1]["equity"], "total_pnl": profit,
                         "xirr": xirr, "first_investment_date": purchases[0][0].isoformat() if purchases else None,
                         "end_date": dates[-1].isoformat()},
+            "daily_buy_amount": amount,
             "daily": daily, "signals": signals, "trades": trades, "annual": annual,
             "corporate_actions": corporate_actions, "weekend_valuation_observations": weekends,
             "pending_orders_carried_over_weekends": carried_orders,
@@ -146,7 +159,7 @@ class Checks:
                 "maximum_absolute_errors": {key: str(value) for key, value in self.maxima.items()}}
 
 
-def compare(result, prefix, code, source_hash):
+def compare(result, prefix, code, source_hash, rule="Fundb"):
     check = Checks()
     payload = json.loads(prefix.with_suffix(".summary.json").read_text())
     for field, expected in result["summary"].items():
@@ -158,6 +171,23 @@ def compare(result, prefix, code, source_hash):
     check.equal(payload["metadata"]["approved_curve_data_sha256"], source_hash, "reviewed_snapshot_hash")
     check.equal(payload["metadata"]["data_hashes"][code], source_hash, "report_snapshot_hash")
     check.equal(payload["config"]["engine"]["trade_calendar_column"], "trade_enabled", "explicit_execution_calendar")
+    metadata = payload["metadata"]
+    override = metadata.get("user_rule_override", {})
+    check.equal(override.get("mode"), "daily_fixed", "override.mode")
+    check.number(override.get("amount"), result["daily_buy_amount"], "override.amount")
+    check.equal(override.get("ranking"), False, "override.no_peer_ranking")
+    check.equal(override.get("sell"), False, "override.no_sells")
+    check.equal(override.get("calendar"), "weekday_nav", "override.calendar")
+    # Legacy daily-40 reports omit this declaration; the full daily BUY comparison
+    # below independently verifies that no price-position threshold was applied.
+    if "threshold_applied" in override:
+        check.equal(override["threshold_applied"], False, "override.no_threshold")
+    strategy = metadata.get("strategy", {})
+    check.equal(strategy.get("name"), rule, "strategy.rule")
+    check.equal(strategy.get("selection_mode"), "daily_fixed", "strategy.selection_mode")
+    selection = metadata.get("signal_metadata", {})
+    check.equal(selection.get("ranking"), False, "signal_metadata.no_peer_ranking")
+    check.number(selection.get("amount"), result["daily_buy_amount"], "signal_metadata.amount")
     for suffix, label in [("daily.csv", "portfolio"), ("components_daily.csv.gz", "component")]:
         actual_rows = rows(prefix.with_suffix("." + suffix))
         check.equal(len(actual_rows), len(result["daily"]), label + ".row_count")
@@ -165,7 +195,7 @@ def compare(result, prefix, code, source_hash):
             check.equal(actual["date"], expected["date"], label + ".date")
             if label == "component":
                 check.equal(actual["code"], code, label + ".code")
-                check.equal(actual["asset_type"], "Fundb", label + ".rule")
+                check.equal(actual["asset_type"], rule, label + ".rule")
                 check.boolean(actual["trade_enabled"], expected["trade_enabled"], label + ".trade_enabled")
             for field, value in expected.items():
                 if field in {"date", "trade_enabled"}:
@@ -178,6 +208,7 @@ def compare(result, prefix, code, source_hash):
         for field in ["date", "action"]:
             check.equal(actual[field], expected[field], "signal." + field)
         check.equal(actual["code"], code, "signal.code")
+        check.equal(actual["asset_type"], rule, "signal.rule")
         check.boolean(actual["trade_enabled"], expected["trade_enabled"], "signal.trade_enabled")
         check.equal(actual.get("rank", ""), "", "signal.no_peer_ranking")
         if expected["amount"] is not None:
@@ -185,6 +216,8 @@ def compare(result, prefix, code, source_hash):
     actual_trades = rows(prefix.with_suffix(".trades.csv"))
     check.equal(len(actual_trades), len(result["trades"]), "trade.row_count")
     for actual, expected in zip(actual_trades, result["trades"]):
+        check.equal(actual["code"], code, "trade.code")
+        check.equal(actual["asset_type"], rule, "trade.rule")
         for field in ["signal_date", "date", "action", "status"]:
             check.equal(actual[field], expected[field], "trade." + field)
         for field in ["amount", "shares", "price", "fee"]:
@@ -217,19 +250,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=ROOT / "data/single/003358/20261111/003358.csv")
     parser.add_argument("--report-prefix", type=Path, default=ROOT / "reports/single_003358_fundb_2010")
+    parser.add_argument("--amount", type=positive_amount, default=D("40"), help="Fixed daily cash purchase; default 40")
+    parser.add_argument("--rule", default="Fundb", help="Expected report asset_type label; default Fundb")
     parser.add_argument("--require-report", action="store_true")
     args = parser.parse_args()
     metadata = json.loads(args.data.with_suffix(".metadata.json").read_text())
     digest = hashlib.sha256(args.data.read_bytes()).hexdigest()
     if metadata["data_sha256"] != digest:
         raise ValueError("Input differs from the reviewed snapshot")
-    result = calculate(args.data)
+    result = calculate(args.data, amount=args.amount)
     actions = audit_source_actions(args.data, metadata)
-    comparison = (compare(result, args.report_prefix, metadata["code"], digest)
+    comparison = (compare(result, args.report_prefix, metadata["code"], digest, rule=args.rule)
                   if args.report_prefix.with_suffix(".summary.json").exists() else None)
     passed = comparison["passed"] and actions["passed"] if comparison is not None else None
     output = {"stage": "awaiting_production_report" if comparison is None else "verified" if passed else "verification_failed",
               "passed": passed, "code": metadata["code"], "source_sha256": digest,
+              "rule": args.rule, "daily_buy_amount": result["daily_buy_amount"],
               "method": __doc__, "decimal_precision": getcontext().prec,
               "summary": result["summary"], "annual": result["annual"],
               "trade_enabled_observations": result["trade_enabled_observations"],

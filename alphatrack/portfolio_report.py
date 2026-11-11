@@ -340,6 +340,8 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
             f"本页仅对指定基金 {fund_label} 应用 {type_label} 规则，买卖条件与金额设置见本次执行假设。",
             "本次是指定单只基金的历史规则模拟；结果只代表该基金在所列数据与假设下的表现。",
         ]
+        if metadata.get("user_rule_override", {}).get("mode") == "daily_fixed":
+            default_notes[0] = f"本页仅对指定基金 {fund_label} 应用用户指定的每日固定买入规则，金额与执行日历见本次执行假设。"
         default_notes[3] = ("账户每日估值使用该基金截至当日的最近已知净值。缺少当日净值时只延用估值，"
                             "不因此重复生成交易；境外基金估值还存在公布延迟。")
         default_notes.append("标记“未成立”的年度没有可投资的基金数据，不回填净值，也不发生投入或交易；年度表显示 —，不作为零收益年份。")
@@ -390,7 +392,9 @@ def render_portfolio_report(daily, annual, funds, groups, summary, metadata, out
         })
         if metadata.get("user_rule_override", {}).get("mode") == "daily_fixed":
             amount = metadata["user_rule_override"]["amount"]
-            copy["SUBTITLE"] = f"对 {fund_label} 按用户指定的单基金 {type_label} 规则，每个可执行交易日买入{amount:g}元，不排名、不卖出；展示账户模拟盈亏（含未实现）、资金使用与风险。"
+            copy["SUBTITLE"] = f"对 {fund_label} 按用户指定的每日定投规则，每个可执行交易日买入{amount:g}元，无买入门槛、不排名、不卖出；展示账户模拟盈亏（含未实现）、资金使用与风险。"
+            copy["GROUP_TITLE"] = f"每日{amount:g}元定投账户汇总"
+            copy["GROUP_DESCRIPTION"] = f"仅包含指定基金 {fund_label}，采用本次明确的每日固定买入规则。"
             copy["SOURCE_LABEL"] = "QLab 净值/分红计算版本"
     replacements = {
         "TITLE": html.escape(title), "START": html.escape(start), "END": dates[-1],

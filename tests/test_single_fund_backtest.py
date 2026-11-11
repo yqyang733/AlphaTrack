@@ -217,3 +217,75 @@ def test_daily_bond_override_keeps_valuation_and_starts_without_ranking_or_repla
         assert payload["summary"]["first_investment_date"] == "2012-01-03"
         assert payload["summary"]["buy_count"] == 2
         assert payload["summary"]["total_contributions"] == 80
+
+
+def test_daily_fundg_amount_buys_high_positions_without_changing_default(
+        reviewed_snapshot, tmp_path, monkeypatch):
+    raw = pd.read_csv(reviewed_snapshot, parse_dates=["date"])
+    raw["nav"] = [1., 1., 1.1, 1.2, 1.3, 1.4]
+    raw["dividend"] = 0.
+    raw.to_csv(reviewed_snapshot, index=False)
+    reference = QLabRules(backtest_single_fund.ROOT / "vendor/qlab").prepare_features(raw, "Fundg")
+    normalized, _ = load_data(reviewed_snapshot)
+    path = reviewed_snapshot.with_suffix(".metadata.json")
+    metadata = json.loads(path.read_text())
+    metadata["data_sha256"] = hashlib.sha256(reviewed_snapshot.read_bytes()).hexdigest()
+    metadata["qlab_max_absolute_error"] = float((normalized.total_return_index - reference.total_return_index).abs().max())
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    monkeypatch.setattr(backtest_single_fund, "render_portfolio_report", lambda *args, **kwargs: None)
+
+    default_prefix = tmp_path / "default" / "report"
+    default = backtest_single_fund.run(reviewed_snapshot, "Fundg", default_prefix, curve_confirmed=True)
+    default_signals = pd.read_csv(default_prefix.with_suffix(".signals.csv.gz"), parse_dates=["date"])
+    assert reference["近1年百分位"].iloc[2:].gt(.6).all()
+    assert default_signals.action.tolist() == ["HOLD", "BUY", "HOLD", "HOLD", "HOLD", "HOLD"]
+    assert default["summary"]["buy_count"] == 1
+    assert "user_rule_override" not in default["metadata"]
+    assert "60%" in "\n".join(default["metadata"]["assumptions"])
+
+    def forbidden_original_signals(*args, **kwargs):
+        pytest.fail("Explicit daily purchases must not consult original Fundg signals")
+
+    monkeypatch.setattr(QLabRules, "build_signals", forbidden_original_signals)
+    daily_prefix = tmp_path / "daily" / "report"
+    daily = backtest_single_fund.run(reviewed_snapshot, "Fundg", daily_prefix,
+                                   curve_confirmed=True, daily_buy_amount=10)
+    daily_signals = pd.read_csv(daily_prefix.with_suffix(".signals.csv.gz"))
+    trades = pd.read_csv(daily_prefix.with_suffix(".trades.csv"))
+    assert daily_signals.action.eq("BUY").all()
+    assert daily_signals.amount.eq(10).all()
+    assert trades.loc[trades.status == "FILLED", "amount"].eq(10).all()
+    assert daily["summary"]["buy_count"] == 5
+    assert daily["summary"]["total_contributions"] == 50
+    override = daily["metadata"]["user_rule_override"]
+    assert override["mode"] == "daily_fixed" and override["amount"] == 10
+    assert override["threshold_applied"] is False
+    assert "60%" not in "\n".join(daily["metadata"]["assumptions"])
+    assert daily["config"]["rule_configuration"]["mode"] == "daily_fixed"
+
+
+@pytest.mark.parametrize("rule,amount,legacy_flag", [
+    ("Fundg", 0, False), ("Fundg", -1, False),
+    ("Fundg", True, False), ("Fundg", False, False),
+    ("Fundg", float("nan"), False), ("Fundg", float("inf"), False),
+    ("Fundg", float("-inf"), False),
+    ("Fundd", 10, False), ("Fundf_1", 10, False), ("Fundc", 10, False),
+    ("Fundb", 40, True),
+])
+def test_daily_amount_rejects_invalid_amount_rules_and_conflicting_flags(
+        reviewed_snapshot, tmp_path, monkeypatch, rule, amount, legacy_flag):
+    path = reviewed_snapshot.with_suffix(".metadata.json")
+    metadata = json.loads(path.read_text())
+    metadata["requested_strategy"] = rule
+    path.write_text(json.dumps(metadata), encoding="utf-8")
+    output = tmp_path / "rejected_daily_amount" / "report"
+
+    def forbidden_engine(*args, **kwargs):
+        pytest.fail("Invalid daily purchase settings must be rejected before execution")
+
+    monkeypatch.setattr(backtest_single_fund, "run_backtest", forbidden_engine)
+    with pytest.raises(ValueError):
+        backtest_single_fund.run(reviewed_snapshot, rule, output, curve_confirmed=True,
+                                category="基金>宽基指数", fundb_daily_buy=legacy_flag,
+                                daily_buy_amount=amount)
+    assert not output.parent.exists()
