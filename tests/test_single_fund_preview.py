@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import pytest
 
-from scripts.prepare_single_fund import normalize, parse_events
+from scripts.prepare_single_fund import apply_approved_omissions, normalize, parse_events
 
 
 CODE = "519981"
@@ -93,3 +93,60 @@ def test_event_without_exact_nav_and_unmatched_annotation_are_rejected():
         normalize(nav_text(["2025-01-02", "2025-01-03"],
                            notes={"2025-01-03": "分红：每份派现金0.05元"}),
                   parse_events(page(), CODE, AS_OF), CODE)
+
+
+@pytest.fixture
+def omission_inputs():
+    code = "096001"
+    events = parse_events(page(code=code, cash_rows=[
+        ["2015-01-20", "2015-01-19", "每10份派现金0.1870元", "2015-01-22"],
+        ["2016-01-21", "2016-01-20", "每10份派现金0.4400元", "2016-01-25"],
+    ]), code, AS_OF)
+    dates = ["2015-01-16", "2015-01-20", "2016-01-19", "2016-01-20"]
+    text = nav_text(dates, code=code, notes={"2016-01-20": "分红：每10份派现金元"})
+    approval = {"code": code, "authorization": "用户确认仅排除该次缺少除息日净值的分红",
+                "events": [{"date": "2015-01-19", "type": "现金分红", "value": "0.0187"}]}
+    return code, text, events, approval
+
+
+def test_approved_missing_nav_omission_is_exact_and_leaves_other_dividend(omission_inputs):
+    code, text, events, approval = omission_inputs
+    # No approval must retain the strict rule; a later NAV cannot replace the ex-date.
+    unchanged, none_removed = apply_approved_omissions(text, events, code, None)
+    pd.testing.assert_frame_equal(unchanged, events)
+    assert none_removed == []
+    with pytest.raises(ValueError, match="Missing action NAV"):
+        normalize(text, unchanged, code)
+
+    remaining, omitted = apply_approved_omissions(text, events, code, approval)
+    assert len(events) == 2  # Preserve the source event list for audit.
+    assert len(omitted) == 1
+    assert {key: omitted[0][key] for key in ("date", "type", "value")} == approval["events"][0]
+    assert remaining["分红日"].tolist() == [pd.Timestamp("2016-01-20")]
+    actual = normalize(text, remaining, code)
+    assert actual.date.tolist() == ["2015-01-16", "2015-01-20", "2016-01-19", "2016-01-20"]
+    assert actual.dividend.tolist() == [0.0, 0.0, 0.0, .044]
+    assert actual.split.eq(1).all()
+
+
+@pytest.mark.parametrize("field,value", [
+    ("code", "096002"), ("date", "2015-01-18"),
+    ("value", "0.0188"), ("type", "份额折算"),
+])
+def test_omission_rejects_wrong_fund_or_event(omission_inputs, field, value):
+    code, text, events, approval = omission_inputs
+    if field == "code":
+        approval[field] = value
+    else:
+        approval["events"][0][field] = value
+    with pytest.raises(ValueError):
+        apply_approved_omissions(text, events, code, approval)
+    assert len(events) == 2
+
+
+def test_omission_cannot_hide_an_event_after_exact_nav_becomes_available(omission_inputs):
+    code, _, events, approval = omission_inputs
+    repaired_nav = nav_text(["2015-01-16", "2015-01-19", "2015-01-20",
+                             "2016-01-19", "2016-01-20"], code=code)
+    with pytest.raises(ValueError, match="ex-date NAV exists"):
+        apply_approved_omissions(repaired_nav, events, code, approval)

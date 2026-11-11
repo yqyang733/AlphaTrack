@@ -25,7 +25,7 @@ from alphatrack.strategies.qlab import QLabRules, QLabSignalStrategy, asset_key
 from scripts.export_window_tables import formatted, tsv
 
 
-def export_tables(output, annual, summary):
+def export_tables(output, annual, summary, warnings=()):
     metrics = [
         ("累计投入本金（万元）", "total_contributions", "money"),
         ("累计盈亏（万元）", "total_pnl", "money"),
@@ -50,7 +50,7 @@ def export_tables(output, annual, summary):
         annual_rows.append([label, *(["—"] * 3 if r.year_status == "not_incepted" else
                                      [f"{r.deposits:.2f}", f"{r.profit:.2f}", f"{r.end_assets:.2f}"])])
     annual_headers = ["年份", "当年投入（元）", "当年盈亏（元）", "年末资产（元）"]
-    lines = [f"截止 {summary['end_date']}；盈亏包含持仓浮盈亏。", "",
+    lines = [f"截止 {summary['end_date']}；盈亏包含持仓浮盈亏。", *warnings, "",
              "| " + " | ".join(annual_headers) + " |", "|---|---:|---:|---:|"]
     lines += ["| " + " | ".join(values) + " |" for values in annual_rows]
     lines += ["", "指标汇总（累计金额为万元）：", "", "| 指标 | 数值 |", "|---|---:|"]
@@ -131,6 +131,8 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
                     qlab_commit=provenance["commit"], source_commit=provenance["commit"],
                     source_url=provenance["repository"], coverage=[source_meta],
                     signal_metadata=signal_metadata, assumptions=assumptions,
+                    warnings=source_meta.get("warnings", []),
+                    approved_omissions=source_meta.get("approved_omissions", []),
                     strategy={"name": rule, "scope": "single_fund"},
                     validation={"annual_pnl_sum": float(annual.profit.sum()),
                                 "fund_pnl_sum": summary["total_pnl"], "group_pnl_sum": summary["total_pnl"],
@@ -151,7 +153,7 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         output.with_suffix(".signals.csv.gz"), index=False, compression="gzip", float_format="%.12g")
     write_json(output.with_suffix(".summary.json"), payload)
     render_portfolio_report(daily, annual, funds, {"summary": groups, "daily": {rule: daily}}, summary, metadata, output)
-    export_tables(output, annual, summary)
+    export_tables(output, annual, summary, metadata["warnings"])
     print(json.dumps({"report": str(output), **summary}, ensure_ascii=False, indent=2))
     return payload
 

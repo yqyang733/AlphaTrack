@@ -139,7 +139,42 @@ def normalize(nav_text, events, code):
     return frame
 
 
-def prepare(code, rule, directory, *, from_raw=False):
+def apply_approved_omissions(nav_text, events, code, approval):
+    """Exclude only exact, explicitly accepted events whose ex-date has no NAV."""
+    if approval is None:
+        return events, []
+    if approval.get("code") != code or not str(approval.get("authorization", "")).strip():
+        raise ValueError("Omission approval must identify this fund and explicit user authorization")
+    requests = approval.get("events")
+    if not isinstance(requests, list) or not requests:
+        raise ValueError("Omission approval must list exact events")
+    if extract(nav_text, "fS_code") != code:
+        raise ValueError("NAV identity mismatch")
+    nav_dates = {datetime.fromtimestamp(v["x"] / 1000, ZoneInfo("Asia/Shanghai")).date().isoformat()
+                 for v in extract(nav_text, "Data_netWorthTrend")}
+    removed, seen = [], set()
+    remaining = events.copy()
+    for request in requests:
+        day, kind = request["date"], request["type"]
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day) or kind != "现金分红":
+            raise ValueError("Only an exact dated cash dividend can be approved for omission")
+        key = (day, kind)
+        if key in seen:
+            raise ValueError("Duplicate approved omission")
+        seen.add(key)
+        mask = remaining["分红日"].eq(pd.Timestamp(day)) & remaining["分红类型"].eq(kind)
+        matches = remaining[mask]
+        if len(matches) != 1 or Decimal(str(matches.iloc[0]["分红"])) != Decimal(str(request["value"])):
+            raise ValueError("Approved omission does not match exactly one source event")
+        if day in nav_dates:
+            raise ValueError("Approved omission is no longer applicable: ex-date NAV exists")
+        removed.append({"date": day, "type": kind, "value": str(matches.iloc[0]["分红"]),
+                        "reason": "User explicitly accepted omitting this missing-NAV cash dividend"})
+        remaining = remaining[~mask].copy()
+    return remaining.reset_index(drop=True), removed
+
+
+def prepare(code, rule, directory, *, from_raw=False, approved_omissions=None):
     if not re.fullmatch(r"\d{6}", code):
         raise ValueError("Fund code must contain six digits")
     directory = Path(directory).resolve()
@@ -163,7 +198,9 @@ def prepare(code, rule, directory, *, from_raw=False):
     as_of = pd.Timestamp(sources["dividends.html"]["retrieved_at"]).tz_convert("Asia/Shanghai").tz_localize(None).normalize()
     events = parse_events((directory / "dividends.html").read_text(encoding="utf-8-sig"), code, as_of)
     nav_text = (directory / "nav.js").read_text(encoding="utf-8-sig")
-    frame = normalize(nav_text, events, code)
+    approval = json.loads(Path(approved_omissions).read_text()) if approved_omissions else None
+    included_events, omitted = apply_approved_omissions(nav_text, events, code, approval)
+    frame = normalize(nav_text, included_events, code)
     if pd.Timestamp(frame.date.iloc[-1]) > as_of:
         raise ValueError("NAV date is after snapshot date")
     data_path = directory / f"{code}.csv"
@@ -187,6 +224,11 @@ def prepare(code, rule, directory, *, from_raw=False):
             "sources": sources, "cash_event_dates": events.attrs["cash_event_dates"],
             "curve_basis": "QLab cash dividends reinvested at ex-date unit NAV; normalized split ratios; first observed NAV baseline",
             "planned_start": "2010-01-01", "no_data_before_inception": True}
+    if omitted:
+        meta.update(approved_omissions=omitted, omission_authorization=approval["authorization"],
+                    recorded_cash_dividend_count=int(events["分红类型"].eq("现金分红").sum()),
+                    backtest_allowed=True,
+                    warnings=[f"经用户确认，本次暂不计入 {code} 在 {item['date']} 的每份 {item['value']} 元分红（除息日缺净值）；其余分红正常计入，未移动日期或补造净值。" for item in omitted])
     data_path.with_suffix(".metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2, allow_nan=False))
     print(json.dumps({"data": str(data_path), **{k: v for k, v in meta.items() if k not in {"sources", "cash_event_dates"}}}, ensure_ascii=False, indent=2))
     return data_path, meta
@@ -198,5 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--rule", required=True, choices=["Fundb", "Fundc", "Fundd", "Fundf_1", "Fundg"])
     parser.add_argument("--snapshot-dir", required=True, type=Path)
     parser.add_argument("--from-raw", action="store_true")
+    parser.add_argument("--approved-omissions", type=Path, help="Exact missing-NAV cash events explicitly accepted by the user; no implicit exceptions")
     args = parser.parse_args()
-    prepare(args.code, args.rule, args.snapshot_dir, from_raw=args.from_raw)
+    prepare(args.code, args.rule, args.snapshot_dir, from_raw=args.from_raw,
+            approved_omissions=args.approved_omissions)

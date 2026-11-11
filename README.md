@@ -47,6 +47,18 @@ python scripts/verify_single_fundg.py
 
 Fundg 保持近一年高低位置≤60%时买10元、不卖出的原规则（不足一年时使用已有历史）。结果输出年度盈亏、投入、期末资产、交易、FIFO、信号和账户曲线；`.paste_with_header_wan.tsv` 为“累计本金、累计盈亏、XIRR、TWR、回撤、夏普、波动率、2010年至今各年盈亏”的两行表头/数据，`.paste_2010_wan.tsv` 为仅数据的一行，金额单位万元。`.annual_yuan.tsv` 和 `.table.md` 保留元口径，避免单基金小额年度盈亏被万元舍入掩盖。2010等成立前年份显示“未成立/—”，原始账本不补造净值。
 
+096001 的用户确认例外仅为 **2015-01-19 每份0.0187元现金分红**：该除息日缺净值，本次暂不计入，其余12笔正常处理。`configs/096001_fundg_omissions.json` 保存这项明确授权；处理器逐项匹配基金、日期、类型、金额，只允许省略缺少除息日净值的指定事件。如果日后补齐该日真实净值，旧例外会拒绝执行，须重新核对曲线。原始13笔记录继续保留，报告展示该项说明。
+
+```bash
+# 使用已核对的原始快照离线复现，不刷新数据
+python scripts/prepare_single_fund.py --code 096001 --rule Fundg --snapshot-dir data/single/096001/20261111 --from-raw --approved-omissions configs/096001_fundg_omissions.json
+python scripts/backtest_single_fund.py --data data/single/096001/20261111/096001.csv --rule Fundg --curve-confirmed --output reports/single_096001_fundg_2010.html
+python scripts/verify_portfolio.py --report reports/single_096001_fundg_2010.html
+python scripts/verify_single_fundg.py --code 096001 --data data/single/096001/20261111/096001.csv --report-prefix reports/single_096001_fundg_2010 --require-report
+```
+
+本次已核对输入CSV的SHA256为 `f05d89e0ec551269c99e9bebd167b2dd4db8ac9350ba7587d1de7e6af332c80b`，覆盖2011-03-23至2026-11-09共3735条净值。需要相同原始快照才能精确复现；净值、原始响应与结果文件仍不上传GitHub。
+
 ## QLab 五类基金组合回测
 
 新增 `Fundb + Fundc + Fundd + Fundf_1 + Fundg` 共63只基金组合，从 **2010-01-01** 空仓开始，到共同净值截止 **2026-11-06**。直接加载固定版本 QLab 的原始评分、排名和买卖函数，不重新发明策略。资金无限追加，卖出净回款立即取出，金额采用各类别原配置。

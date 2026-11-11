@@ -1,4 +1,4 @@
-"""Independently audit the approved 519981 Fundg backtest from its fixed CSV.
+"""Independently audit an approved single-fund Fundg backtest from its fixed CSV.
 
 No production strategy, engine, or portfolio implementation is imported.
 Decimal arithmetic builds the total-return curve, trailing-calendar-year
@@ -15,6 +15,7 @@ import gzip
 import hashlib
 import json
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,7 +148,51 @@ def calculate(path):
             "corporate_actions": events, "xirr_terminal_value_residual_yuan": residual}
 
 
-def compare(result, prefix):
+def audit_source_actions(path, metadata):
+    """Reconcile every recorded action with the CSV or an exact documented omission."""
+    event_path = path.with_suffix(".dividends.csv")
+    if not event_path.exists():
+        return {"passed": False, "reason": "Missing recorded corporate-action CSV"}
+    normalized = rows(path)
+    last_date = normalized[-1]["date"]
+
+    def amount(kind, value):
+        if kind == "现金分红":
+            return D(value)
+        if kind == "份额折算":
+            before, after = map(D, value.split(":"))
+            return after / before
+        raise ValueError(f"Unknown corporate-action type: {kind}")
+
+    recorded = {}
+    for event in rows(event_path):
+        key = (event["分红日"], event["分红类型"])
+        if key[0] > last_date:
+            continue
+        if key in recorded:
+            raise ValueError(f"Duplicate recorded corporate action: {key}")
+        recorded[key] = amount(key[1], event["分红"])
+    included = {}
+    for row in normalized:
+        if D(row["dividend"]):
+            included[(row["date"], "现金分红")] = D(row["dividend"])
+        if D(row["split"]) != ONE:
+            included[(row["date"], "份额折算")] = D(row["split"])
+    omissions = {}
+    for event in metadata.get("approved_omissions", []):
+        key = (event["date"], event["type"])
+        if key in omissions:
+            raise ValueError(f"Duplicate documented omission: {key}")
+        omissions[key] = amount(key[1], event["value"])
+    passed = not (set(included) & set(omissions)) and recorded == {**included, **omissions}
+    return {"passed": passed, "recorded_cash_dividends": sum(k[1] == "现金分红" for k in recorded),
+            "included_cash_dividends": sum(k[1] == "现金分红" for k in included),
+            "included_split_events": sum(k[1] == "份额折算" for k in included),
+            "omissions": [{"date": k[0], "type": k[1], "value": str(v)} for k, v in sorted(omissions.items())],
+            "exact_dates_types_values_reconciled": passed}
+
+
+def compare(result, prefix, code="519981"):
     failures, maxima = [], {}
     counts = {"numeric_comparisons": 0, "identity_comparisons": 0}
 
@@ -185,7 +230,7 @@ def compare(result, prefix):
     equal(len(actual_components), len(result["daily"]), "component.row_count")
     for actual, expected in zip(actual_components, result["daily"]):
         equal(actual["date"], expected["date"], "component.date")
-        equal(actual["code"], "519981", "component.code")
+        equal(actual["code"], code, "component.code")
         for field, value in expected.items():
             if field != "date":
                 number(actual[field], value, "component." + field + ":" + expected["date"])
@@ -193,7 +238,7 @@ def compare(result, prefix):
     equal(len(actual_signals), len(result["signals"]), "signal.row_count")
     for actual, expected in zip(actual_signals, result["signals"]):
         equal(actual["date"], expected["date"], "signal.date")
-        equal(actual["code"], "519981", "signal.code")
+        equal(actual["code"], code, "signal.code")
         equal(actual["action"], "BUY" if expected["buy"] else "HOLD", "signal.action")
         if expected["position"] is None:
             equal(actual["近1年百分位"], "", "signal.insufficient_history")
@@ -237,29 +282,41 @@ def compare(result, prefix):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--code", help="fund identity; defaults to the input metadata code, otherwise 519981")
     parser.add_argument("--data", type=Path, default=ROOT / "data/single/519981/20261111/519981.csv")
     parser.add_argument("--report-prefix", type=Path, default=ROOT / "reports/single_519981_fundg_2010")
     parser.add_argument("--require-report", action="store_true")
     args = parser.parse_args()
+    metadata_path = args.data.with_suffix(".metadata.json")
+    metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+    code = args.code or metadata.get("code", "519981")
+    if not isinstance(code, str) or not re.fullmatch(r"[0-9]{6}", code):
+        parser.error("code must contain six digits")
+    if metadata.get("code") and metadata["code"] != code:
+        parser.error("explicit code disagrees with input metadata identity")
     # Known-answer XIRR: one 100-yuan purchase, 110 yuan after exactly 365 days.
     rate, residual = solve_xirr([(date(2021, 1, 1), D(100))], date(2022, 1, 1), D(110))
     assert abs(rate - D("0.1")) < D("1e-30") and abs(residual) < D("1e-30")
     result = calculate(args.data)
+    source_actions = audit_source_actions(args.data, metadata)
     report_exists = args.report_prefix.with_suffix(".summary.json").exists()
-    comparison = compare(result, args.report_prefix) if report_exists else None
+    comparison = compare(result, args.report_prefix, code) if report_exists else None
     output = {"stage": "verified" if comparison else "awaiting_production_report",
-              "passed": comparison["passed"] if comparison else None, "method": __doc__,
-              "source_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
+              "passed": comparison["passed"] and source_actions["passed"] if comparison else None, "method": __doc__,
+              "code": code, "source_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
               "decimal_precision": getcontext().prec, "xirr_known_answer_test": "passed",
               "summary": result["summary"], "annual": result["annual"],
               "corporate_actions": result["corporate_actions"],
+              "source_corporate_action_reconciliation": source_actions,
               "xirr_terminal_value_residual_yuan": result["xirr_terminal_value_residual_yuan"],
               "comparison": comparison}
     path = args.report_prefix.with_suffix(".independent_audit.json")
     path.write_text(json.dumps(output, ensure_ascii=False, indent=2, default=str) + "\n")
     print(json.dumps({"summary": output["summary"], "comparison": comparison,
+                      "source_corporate_action_reconciliation": source_actions,
                       "audit": str(path)}, ensure_ascii=False, indent=2, default=str), flush=True)
-    raise SystemExit(1 if (comparison and not comparison["passed"]) or (args.require_report and not comparison) else 0)
+    raise SystemExit(1 if not source_actions["passed"] or (comparison and not comparison["passed"])
+                     or (args.require_report and not comparison) else 0)
 
 
 if __name__ == "__main__":
