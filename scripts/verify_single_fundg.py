@@ -1,8 +1,11 @@
 """Independently audit an approved single-fund Fundg backtest from its fixed CSV.
 
-No production strategy, engine, or portfolio implementation is imported.
-Decimal arithmetic builds the total-return curve, trailing-calendar-year
-position, next-observation purchases, dividend entitlement and yearly P&L.
+The independent calculation imports no production backtest implementation.
+Decimal arithmetic builds the exact total-return curve and account ledger.
+An explicit qlab-binary64 signal mode reproduces QLab's floating-point
+operation order while reporting every difference from exact Decimal signals.
+That mode also calls the frozen QLab reference functions as separate evidence;
+their outputs never drive the independently calculated ledger.
 ACT/365 XIRR is solved through a monotone integer-day future-value polynomial.
 """
 import argparse
@@ -10,7 +13,7 @@ from bisect import bisect_left
 import calendar
 import csv
 from datetime import date
-from decimal import Decimal, getcontext
+from decimal import Decimal, InvalidOperation, getcontext
 import gzip
 import hashlib
 import json
@@ -59,7 +62,9 @@ def solve_xirr(purchases, terminal_date, terminal_assets):
     return daily_growth ** 365 - ONE, value(daily_growth) - terminal_assets
 
 
-def calculate(path):
+def calculate(path, signal_arithmetic="decimal"):
+    if signal_arithmetic not in {"decimal", "qlab-binary64"}:
+        raise ValueError("signal_arithmetic must be decimal or qlab-binary64")
     source = rows(path)
     dates = [date.fromisoformat(r["date"]) for r in source]
     assert dates == sorted(set(dates))
@@ -67,6 +72,8 @@ def calculate(path):
     shares = contribution = economic_pnl = ZERO
     investment_units, investment_unit_price = ZERO, ONE
     curve_multiplier = ONE / D(source[0]["nav"])
+    binary_shares = 1.0 / float(source[0]["nav"])
+    binary_curve, arithmetic_differences = [], []
     pending = None
     yearly = {year: {"profit": ZERO, "deposits": ZERO} for year in range(2010, dates[-1].year + 1)}
     events = []
@@ -80,13 +87,37 @@ def calculate(path):
         curve_multiplier *= split * (ONE + dividend / nav)
         total_return_value = curve_multiplier * nav
         curve.append(total_return_value)
+        # Follow the original binary64 event and subtraction order explicitly.
+        # This affects signals only; all holdings and money remain Decimal.
+        binary_shares *= float(split)
+        if dividend:
+            binary_shares += binary_shares * float(dividend) / float(nav)
+        binary_curve.append((binary_shares * float(nav) - 1.0) / 1.0)
         left = bisect_left(dates, previous_year(day), 0, i + 1)
         window = curve[left:i + 1]
-        position = None
+        decimal_position = binary_position = None
         if len(window) >= 2:
             low, high = min(window), max(window)
-            position = D("0.5") if high == low else (total_return_value - low) / (high - low)
-        signal = position is not None and position <= D("0.6")
+            decimal_position = D("0.5") if high == low else (total_return_value - low) / (high - low)
+            binary_window = binary_curve[left:i + 1]
+            binary_low, binary_high = min(binary_window), max(binary_window)
+            binary_position = (0.5 if binary_high == binary_low else
+                               (binary_curve[-1] - binary_low) / (binary_high - binary_low))
+        decimal_signal = decimal_position is not None and decimal_position <= D("0.6")
+        binary_signal = binary_position is not None and binary_position <= 60.0 / 100.0
+        if decimal_signal != binary_signal:
+            arithmetic_differences.append({
+                "date": day.isoformat(), "decimal_position": str(decimal_position),
+                "qlab_binary64_position": repr(binary_position),
+                "decimal_action": "BUY" if decimal_signal else "HOLD",
+                "qlab_binary64_action": "BUY" if binary_signal else "HOLD",
+                "next_nav_date": source[i + 1]["date"] if i + 1 < len(source) else None,
+                "next_nav": source[i + 1]["nav"] if i + 1 < len(source) else None,
+                "window_inputs": [{**source[j], "decimal_total_return_index": str(curve[j]),
+                                   "qlab_binary64_cumulative_return": repr(binary_curve[j])}
+                                  for j in range(left, i + 1)]})
+        position = decimal_position if signal_arithmetic == "decimal" else binary_position
+        signal = decimal_signal if signal_arithmetic == "decimal" else binary_signal
         signals.append({"date": day.isoformat(), "buy": signal,
                         "position": str(position) if position is not None else None})
 
@@ -145,7 +176,9 @@ def calculate(path):
                         "xirr": xirr, "first_investment_date": purchases[0][0].isoformat(),
                         "end_date": dates[-1].isoformat()},
             "daily": daily, "trades": trades, "signals": signals, "annual": yearly,
-            "corporate_actions": events, "xirr_terminal_value_residual_yuan": residual}
+            "corporate_actions": events, "xirr_terminal_value_residual_yuan": residual,
+            "signal_arithmetic": signal_arithmetic,
+            "signal_arithmetic_differences": arithmetic_differences}
 
 
 def audit_source_actions(path, metadata):
@@ -206,7 +239,17 @@ def compare(result, prefix, code="519981"):
         if actual is None or expected is None:
             equal(actual, expected, label)
             return
-        error = abs(D(str(actual)) - expected)
+        try:
+            actual_number = D(str(actual))
+        except (InvalidOperation, ValueError, TypeError):
+            failures.append({"check": label, "actual": str(actual), "expected": str(expected),
+                             "reason": "Missing or invalid numeric value"})
+            return
+        if not actual_number.is_finite():
+            failures.append({"check": label, "actual": str(actual), "expected": str(expected),
+                             "reason": "Nonfinite numeric value"})
+            return
+        error = abs(actual_number - expected)
         maxima[label.split(":")[0]] = max(maxima.get(label.split(":")[0], ZERO), error)
         tolerance = D("2e-7") + abs(expected) * D("6e-11")
         if error > tolerance:
@@ -280,12 +323,74 @@ def compare(result, prefix, code="519981"):
             "maximum_absolute_errors": {k: str(v) for k, v in maxima.items()}}
 
 
+def qlab_reference_evidence(data_path, result, code):
+    """Check independent binary64 signals against frozen original functions.
+
+    This is a separate reference check. It never supplies trading decisions to
+    calculate(), and never calls a production backtest or writes reference files.
+    """
+    import sys
+    from types import ModuleType
+    import pandas as pd
+
+    vendor = ROOT / "vendor/qlab"
+    namespace = "_single_fundg_audit_original_qlab"
+    package = ModuleType(namespace)
+    package.__path__ = []
+    sys.modules[namespace] = package
+
+    def load(name, relative):
+        module = ModuleType(namespace + "." + name)
+        module.__file__ = str(vendor / relative)
+        sys.modules[module.__name__] = module
+        exec(compile((vendor / relative).read_bytes(), module.__file__, "exec"), module.__dict__)
+        return module
+
+    config_module = load("config", "trading/config.py")
+    engine_module = load("engine", "trading/engine.py")
+    calculator = load("calculator", "core/calculator.py")
+    nav = pd.read_csv(data_path, parse_dates=["date"])
+    events = pd.read_csv(data_path.with_suffix(".dividends.csv"), parse_dates=["分红日"], dtype={"分红": str})
+    source_curve = calculator.ReturnCalculator.calculate_return_with_dividend_reinvest(
+        nav[["date", "nav"]].rename(columns={"date": "净值日期", "nav": "单位净值"}), events)
+    source_positions = calculator.PercentileCalculator.calculate_percentile_position(
+        source_curve.drop(columns="单位净值").rename(columns={"累计收益率": "单位净值"}), [1, 2, 3, 5, 10])
+    config = config_module.TradingConfig.from_json(vendor / "configs/trading/Fundg.json", asset_type="Fundg")
+    engine = engine_module.TradingEngine(config)
+    mismatches, boundary_evidence = [], []
+    reference_buys = 0
+    differing_dates = {item["date"] for item in result["signal_arithmetic_differences"]}
+    for index, row in source_positions.iterrows():
+        day = str(row["净值日期"].date())
+        decision, _ = engine.evaluate("Fundg", code, code, day, row)
+        reference_buys += decision.action == "BUY"
+        independent = result["signals"][index]
+        independent_action = "BUY" if independent["buy"] else "HOLD"
+        if day != independent["date"] or decision.action != independent_action:
+            mismatches.append({"date": day, "reference_action": decision.action,
+                               "independent_action": independent_action})
+        if day in differing_dates:
+            boundary_evidence.append({"date": day, "original_position_repr": repr(float(row["近1年百分位"])),
+                                      "original_action": decision.action, "original_reason": decision.reason})
+    files = ["core/calculator.py", "trading/engine.py", "trading/config.py", "configs/trading/Fundg.json"]
+    return {"passed": not mismatches, "observations": len(source_positions),
+            "reference_buy_signal_count": reference_buys, "action_mismatch_count": len(mismatches),
+            "action_mismatches": mismatches, "boundary_evidence": boundary_evidence,
+            "source_commit": json.loads((vendor / "PROVENANCE.json").read_text())["commit"],
+            "source_hashes": {name: hashlib.sha256((vendor / name).read_bytes()).hexdigest() for name in files},
+            "source_locations": {"return_subtraction": "core/calculator.py:64-65",
+                                 "position_formula": "core/calculator.py:146-160",
+                                 "strict_threshold": "trading/engine.py:67-68"}}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--code", help="fund identity; defaults to the input metadata code, otherwise 519981")
     parser.add_argument("--data", type=Path, default=ROOT / "data/single/519981/20261111/519981.csv")
     parser.add_argument("--report-prefix", type=Path, default=ROOT / "reports/single_519981_fundg_2010")
     parser.add_argument("--require-report", action="store_true")
+    parser.add_argument("--signal-arithmetic", choices=["decimal", "qlab-binary64"], default="decimal",
+                        help="explicit signal arithmetic; money and XIRR always use Decimal")
     args = parser.parse_args()
     metadata_path = args.data.with_suffix(".metadata.json")
     metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
@@ -297,14 +402,32 @@ def main():
     # Known-answer XIRR: one 100-yuan purchase, 110 yuan after exactly 365 days.
     rate, residual = solve_xirr([(date(2021, 1, 1), D(100))], date(2022, 1, 1), D(110))
     assert abs(rate - D("0.1")) < D("1e-30") and abs(residual) < D("1e-30")
-    result = calculate(args.data)
+    result = calculate(args.data, args.signal_arithmetic)
+    reference = qlab_reference_evidence(args.data, result, code) if args.signal_arithmetic == "qlab-binary64" else None
+    counterfactual = None
+    if args.signal_arithmetic == "qlab-binary64" and result["signal_arithmetic_differences"]:
+        exact = calculate(args.data, "decimal")
+        impact_fields = ["buy_count", "total_contributions", "final_equity", "total_pnl", "xirr"]
+        counterfactual = {"label": "Exact Decimal signal counterfactual; not the QLab-compatible report",
+                          "summary": exact["summary"],
+                          "exact_decimal_minus_qlab_compatible": {
+                              key: exact["summary"][key] - result["summary"][key] for key in impact_fields}}
     source_actions = audit_source_actions(args.data, metadata)
     report_exists = args.report_prefix.with_suffix(".summary.json").exists()
     comparison = compare(result, args.report_prefix, code) if report_exists else None
-    output = {"stage": "verified" if comparison else "awaiting_production_report",
-              "passed": comparison["passed"] and source_actions["passed"] if comparison else None, "method": __doc__,
+    passed = (comparison["passed"] and source_actions["passed"] and (reference is None or reference["passed"])
+              if comparison is not None else None)
+    stage = ("awaiting_production_report" if comparison is None else
+             "verified" if passed else "verification_failed")
+    output = {"stage": stage, "passed": passed,
+              "passed_scope": "Selected signal arithmetic, independent Decimal ledger and recorded source actions; exact-vs-binary64 differences are separately disclosed",
+              "method": __doc__,
               "code": code, "source_sha256": hashlib.sha256(args.data.read_bytes()).hexdigest(),
               "decimal_precision": getcontext().prec, "xirr_known_answer_test": "passed",
+              "signal_arithmetic": args.signal_arithmetic,
+              "exact_decimal_signals_match_qlab": not result["signal_arithmetic_differences"],
+              "signal_arithmetic_differences": result["signal_arithmetic_differences"],
+              "exact_decimal_counterfactual": counterfactual, "qlab_reference_evidence": reference,
               "summary": result["summary"], "annual": result["annual"],
               "corporate_actions": result["corporate_actions"],
               "source_corporate_action_reconciliation": source_actions,
@@ -313,9 +436,13 @@ def main():
     path = args.report_prefix.with_suffix(".independent_audit.json")
     path.write_text(json.dumps(output, ensure_ascii=False, indent=2, default=str) + "\n")
     print(json.dumps({"summary": output["summary"], "comparison": comparison,
+                      "signal_arithmetic": args.signal_arithmetic,
+                      "exact_decimal_signals_match_qlab": output["exact_decimal_signals_match_qlab"],
+                      "signal_arithmetic_differences": output["signal_arithmetic_differences"],
+                      "exact_decimal_counterfactual": counterfactual, "qlab_reference_evidence": reference,
                       "source_corporate_action_reconciliation": source_actions,
                       "audit": str(path)}, ensure_ascii=False, indent=2, default=str), flush=True)
-    raise SystemExit(1 if not source_actions["passed"] or (comparison and not comparison["passed"])
+    raise SystemExit(1 if not source_actions["passed"] or (reference and not reference["passed"]) or (comparison and not comparison["passed"])
                      or (args.require_report and not comparison) else 0)
 
 
