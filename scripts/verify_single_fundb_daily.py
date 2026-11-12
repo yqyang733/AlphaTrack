@@ -17,7 +17,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from scripts.verify_single_fundg import audit_source_actions, rows, solve_xirr
+from scripts.verify_single_fundg import audit_source_actions as audit_recorded_source_actions, rows, solve_xirr
 
 D = Decimal
 ZERO, ONE = D(0), D(1)
@@ -34,22 +34,38 @@ def positive_amount(value):
     return amount
 
 
-def calculate(path, amount=D("40")):
+def calculate(path, amount=D("40"), start="2010-01-01", end=None):
     amount = positive_amount(amount)
+    start_date = date.fromisoformat(str(start))
     raw = rows(path)
     dates = [date.fromisoformat(row["date"]) for row in raw]
     assert dates == sorted(set(dates))
+    if not dates:
+        raise ValueError("No NAV observations on or after the requested start")
+    requested_end = date.fromisoformat(str(end)) if end is not None else dates[-1]
+    if requested_end < start_date or requested_end > dates[-1]:
+        raise ValueError("End must follow start and cannot exceed snapshot coverage")
+    raw = [row for row in raw if date.fromisoformat(row["date"]) <= requested_end]
+    dates = [date.fromisoformat(row["date"]) for row in raw]
+    if not dates or dates[-1] < start_date:
+        raise ValueError("No NAV observations on or after the requested start")
     balance = contribution = profit = ZERO
     total_return_shares = ONE / D(raw[0]["nav"])
     account_units, unit_price = ZERO, ONE
     previous_nav, pending = None, None
     daily, signals, trades, purchases, corporate_actions = [], [], [], [], []
     annual = {year: {"profit": ZERO, "deposits": ZERO}
-              for year in range(2010, dates[-1].year + 1)}
+              for year in range(start_date.year, dates[-1].year + 1)}
     weekends, carried_orders = [], []
     for row, day in zip(raw, dates):
         nav, dividend, split = (D(row[name]) for name in ("nav", "dividend", "split"))
         assert nav > 0 and dividend >= 0 and split > 0
+        # The source curve keeps its full-history baseline; the investment account
+        # starts empty at the cutoff, with no pre-start signal or pending order.
+        total_return_shares *= split * (ONE + dividend / nav)
+        if day < start_date:
+            previous_nav = nav
+            continue
         trade_enabled = day.weekday() < 5
         old_shares = balance
         distribution = old_shares * split * dividend
@@ -58,7 +74,6 @@ def calculate(path, amount=D("40")):
         profit += day_profit
         # Corporate events act on prior holdings before any new cash purchase.
         balance = (old_shares * split * nav + distribution) / nav
-        total_return_shares *= split * (ONE + dividend / nav)
         if account_units:
             unit_price = balance * nav / account_units
         flow = ZERO
@@ -111,17 +126,58 @@ def calculate(path, amount=D("40")):
         assert abs(values["profit"] - (values["end_assets"] - values["beginning_assets"] - values["deposits"])) < D("1e-25")
     assert abs(daily[-1]["equity"] - contribution - profit) < D("1e-25")
     xirr, residual = solve_xirr(purchases, dates[-1], daily[-1]["equity"])
-    return {"summary": {"observations": len(raw), "buy_count": len(purchases), "sell_count": 0,
+    return {"summary": {"observations": len(daily), "buy_count": len(purchases), "sell_count": 0,
                         "total_contributions": contribution, "total_withdrawals": ZERO,
                         "final_equity": daily[-1]["equity"], "total_pnl": profit,
                         "xirr": xirr, "first_investment_date": purchases[0][0].isoformat() if purchases else None,
                         "end_date": dates[-1].isoformat()},
-            "daily_buy_amount": amount,
+            "daily_buy_amount": amount, "start": start_date.isoformat(),
+            "requested_end": requested_end.isoformat(),
+            "warmup_observations": len(raw) - len(daily),
             "daily": daily, "signals": signals, "trades": trades, "annual": annual,
             "corporate_actions": corporate_actions, "weekend_valuation_observations": weekends,
             "pending_orders_carried_over_weekends": carried_orders,
             "trade_enabled_observations": sum(s["trade_enabled"] for s in signals),
             "xirr_terminal_value_residual_yuan": residual}
+
+
+def audit_source_actions(path, metadata):
+    """Audit local QLab snapshots without widening the historical omission policy."""
+    policy_omissions = metadata.get("existing_policy_omissions", [])
+    if metadata.get("source_kind") != "qlab_snapshot":
+        if policy_omissions:
+            return {"passed": False, "reason": "Existing QLab omissions require a QLab snapshot source"}
+        return audit_recorded_source_actions(path, metadata)
+
+    source = metadata.get("sources", {}).get("dividends.csv", {})
+    event_path = path.with_suffix(".dividends.csv")
+    if not event_path.exists():
+        return {"passed": False, "reason": "Missing copied QLab corporate-action CSV"}
+    digest = hashlib.sha256(event_path.read_bytes()).hexdigest()
+    if not source.get("path") or source.get("sha256") != digest:
+        return {"passed": False, "reason": "Copied QLab corporate-action CSV differs from source fingerprint"}
+    if metadata.get("approved_omissions"):
+        return {"passed": False, "reason": "Local QLab batch permits only the exact existing missing-NAV policy"}
+
+    known = {("000931", "2017-03-22", "现金分红"): D("0.08"),
+             ("000931", "2017-11-14", "现金分红"): D("0.04")}
+    nav_dates = {row["date"] for row in rows(path)}
+    seen = set()
+    for event in policy_omissions:
+        key = (metadata.get("code"), event.get("date"), event.get("type"))
+        try:
+            value = D(str(event.get("value")))
+            if not value.is_finite():
+                value = None
+        except InvalidOperation:
+            value = None
+        if key in seen or key not in known or value != known.get(key) or event.get("date") in nav_dates:
+            return {"passed": False, "reason": "Omission is not an exact existing 000931 event with missing NAV",
+                    "rejected_omission": event}
+        seen.add(key)
+    reconciled = audit_recorded_source_actions(path, {**metadata, "approved_omissions": policy_omissions})
+    return {**reconciled, "source_kind": "qlab_snapshot", "source_path": source["path"],
+            "source_sha256": digest, "existing_policy_omissions": policy_omissions}
 
 
 class Checks:
@@ -171,6 +227,8 @@ def compare(result, prefix, code, source_hash, rule="Fundb"):
     check.equal(payload["metadata"]["approved_curve_data_sha256"], source_hash, "reviewed_snapshot_hash")
     check.equal(payload["metadata"]["data_hashes"][code], source_hash, "report_snapshot_hash")
     check.equal(payload["config"]["engine"]["trade_calendar_column"], "trade_enabled", "explicit_execution_calendar")
+    check.equal(payload["config"]["engine"]["start"], result["start"], "requested_start")
+    check.equal(payload["config"]["engine"]["end"], result["requested_end"], "requested_end")
     metadata = payload["metadata"]
     override = metadata.get("user_rule_override", {})
     check.equal(override.get("mode"), "daily_fixed", "override.mode")
@@ -252,13 +310,19 @@ def main():
     parser.add_argument("--report-prefix", type=Path, default=ROOT / "reports/single_003358_fundb_2010")
     parser.add_argument("--amount", type=positive_amount, default=D("40"), help="Fixed daily cash purchase; default 40")
     parser.add_argument("--rule", default="Fundb", help="Expected report asset_type label; default Fundb")
+    parser.add_argument("--start", default="2010-01-01", help="Start with empty holdings on or after this date")
+    parser.add_argument("--end", help="Last allowed NAV date; defaults to report engine end, else snapshot end")
     parser.add_argument("--require-report", action="store_true")
     args = parser.parse_args()
     metadata = json.loads(args.data.with_suffix(".metadata.json").read_text())
     digest = hashlib.sha256(args.data.read_bytes()).hexdigest()
     if metadata["data_sha256"] != digest:
         raise ValueError("Input differs from the reviewed snapshot")
-    result = calculate(args.data, amount=args.amount)
+    report_path = args.report_prefix.with_suffix(".summary.json")
+    end = args.end
+    if end is None and report_path.exists():
+        end = json.loads(report_path.read_text())["config"]["engine"]["end"]
+    result = calculate(args.data, amount=args.amount, start=args.start, end=end)
     actions = audit_source_actions(args.data, metadata)
     comparison = (compare(result, args.report_prefix, metadata["code"], digest, rule=args.rule)
                   if args.report_prefix.with_suffix(".summary.json").exists() else None)
@@ -266,6 +330,8 @@ def main():
     output = {"stage": "awaiting_production_report" if comparison is None else "verified" if passed else "verification_failed",
               "passed": passed, "code": metadata["code"], "source_sha256": digest,
               "rule": args.rule, "daily_buy_amount": result["daily_buy_amount"],
+              "start": result["start"], "warmup_observations": result["warmup_observations"],
+              "requested_end": result["requested_end"],
               "method": __doc__, "decimal_precision": getcontext().prec,
               "summary": result["summary"], "annual": result["annual"],
               "trade_enabled_observations": result["trade_enabled_observations"],

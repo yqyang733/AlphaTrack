@@ -69,6 +69,15 @@ python scripts/verify_single_fundb_daily.py --data data/single/270042/20261111/2
 
 审计脚本保留默认40元/Fundb兼容，`--amount` 和 `--rule` 显式选择本次金额及类别。报告的 `daily_fixed` 与 `threshold_applied=false` 标记固定投入规则；原Fundg报告及不带覆盖参数的行为保持不变。
 
+用户直接授权整批 Fundb 每交易日40元时，可读取指定版本的最新QLab清单和原始分红CSV，排除已有003358、161119，拉取净值并按全部基金共同最新日期回测。`--batch-authorized` 记录批量授权，不冒充逐只曲线已确认；仍验证数据哈希与QLab曲线逐点一致。首次下载后可用 `--from-snapshot` 离线复现，`--prepare-only` 仅准备数据。
+
+```bash
+python scripts/backtest_fundb_batch.py --qlab-source /path/to/QLab --qlab-commit <exact-commit> --snapshot-dir data/fundb_batch/20261112 --output-dir reports/fundb_daily40_20261112 --batch-authorized
+python scripts/verify_single_fundb_daily.py --data data/fundb_batch/20261112/110017/110017.csv --report-prefix reports/fundb_daily40_20261112/single_110017_fundb_2010 --require-report
+```
+
+汇总文件 `fundb_daily40.tsv` / `.md` 按清单顺序输出策略、本金、盈亏、XIRR、TWR、风险指标及2010至截止年每年盈亏，金额万元；每只保留完整账本和曲线。审计支持 `--start` / `--end`，默认起点2010且截止取现有报告，起点前只预热基准曲线、不投入。分红使用QLab除息日元/份口径；仅000931既有两笔缺净值事件沿用原QLab处理，并保留原记录与警告；陌生缺口分红拒绝执行。缺净值日期不补造买入，周末只估值。原始数据与报告均不上传GitHub。
+
 096001 的用户确认例外仅为 **2015-01-19 每份0.0187元现金分红**：该除息日缺净值，本次暂不计入，其余12笔正常处理。`configs/096001_fundg_omissions.json` 保存这项明确授权；处理器逐项匹配基金、日期、类型、金额，只允许省略缺少除息日净值的指定事件。如果日后补齐该日真实净值，旧例外会拒绝执行，须重新核对曲线。原始13笔记录继续保留，报告展示该项说明。
 
 ```bash

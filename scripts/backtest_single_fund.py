@@ -61,8 +61,8 @@ def export_tables(output, annual, summary, warnings=()):
 
 
 def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=False, category=None,
-        fundb_daily_buy=False, daily_buy_amount=None):
-    if not curve_confirmed:
+        fundb_daily_buy=False, daily_buy_amount=None, batch_authorized=False):
+    if not curve_confirmed and not batch_authorized:
         raise ValueError("User must confirm this snapshot's curve before backtesting")
     if fundb_daily_buy and rule != "Fundb":
         raise ValueError("fundb_daily_buy applies only to single-fund Fundb")
@@ -164,16 +164,22 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         assumptions[0] = f"用户指定 {asset['code']} {asset['name']}，每个交易日固定买入{fixed_amount:g}元，无买入门槛，不参与排名，不卖出。"
         assumptions[3] = f"有真实净值的周一至周五作为可执行交易日；当日产生{fixed_amount:g}元买入信号，下一可执行净值成交。周末保留待成交订单，只计算估值与分红；末日新信号不虚构成交。"
         assumptions.insert(1, "这是用户明确设定的单基金固定买入规则；基金净值与分红再投资计算沿用QLab口径。")
+    if batch_authorized and not curve_confirmed:
+        assumptions = [f"用户直接授权按QLab口径批量回测；数据已通过QLab收益曲线逐点一致性校验，截止 {cfg.end}。"
+                       if note.startswith("曲线经用户确认") else note for note in assumptions]
     display_rule = f"每日{fixed_amount:g}元定投" if daily_fixed else rule
     metadata = dict(scope="single_fund", title=f"{asset['code']} · {asset['name']} · {display_rule} 单基金回测",
                     code=asset["code"], name=asset["name"], types=[rule], fund_count=1,
-                    start_date=start, end_date=cfg.end, curve_confirmed_by_user=True,
+                    start_date=start, end_date=cfg.end, curve_confirmed_by_user=bool(curve_confirmed),
+                    batch_authorized_by_user=bool(batch_authorized),
                     approved_curve_data_sha256=digest, data_hashes={asset["code"]: digest},
                     qlab_commit=provenance["commit"], source_commit=provenance["commit"],
+                    qlab_catalog_commit=source_meta.get("qlab_catalog_commit"),
                     source_url=provenance["repository"], coverage=[source_meta],
                     signal_metadata=signal_metadata, assumptions=assumptions,
                     warnings=source_meta.get("warnings", []),
                     approved_omissions=source_meta.get("approved_omissions", []),
+                    existing_policy_omissions=source_meta.get("existing_policy_omissions", []),
                     strategy={"name": rule, "scope": "single_fund", **({"selection_mode": "daily_fixed"} if daily_fixed else {})},
                     validation={"annual_pnl_sum": float(annual.profit.sum()),
                                 "fund_pnl_sum": summary["total_pnl"], "group_pnl_sum": summary["total_pnl"],
@@ -210,9 +216,10 @@ if __name__ == "__main__":
     parser.add_argument("--end")
     parser.add_argument("--category", help="Fundd: 基金>宽基指数 selects the original broad-index amount")
     parser.add_argument("--curve-confirmed", action="store_true", help="Use only after the user confirms this exact snapshot's curve")
+    parser.add_argument("--batch-authorized", action="store_true", help="User explicitly requested direct batch execution with QLab-compatible data")
     parser.add_argument("--fundb-daily-buy", action="store_true", help="User-specified single-fund Fundb: 40 yuan each weekday NAV, no ranking or sales")
     parser.add_argument("--daily-buy-amount", type=float, help="Explicit fixed daily purchase amount, replacing the selected Fundb/Fundg entry conditions")
     args = parser.parse_args()
     run(args.data, args.rule, args.output, start=args.start, end=args.end,
         curve_confirmed=args.curve_confirmed, category=args.category, fundb_daily_buy=args.fundb_daily_buy,
-        daily_buy_amount=args.daily_buy_amount)
+        daily_buy_amount=args.daily_buy_amount, batch_authorized=args.batch_authorized)

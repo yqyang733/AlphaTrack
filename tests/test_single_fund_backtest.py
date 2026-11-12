@@ -289,3 +289,17 @@ def test_daily_amount_rejects_invalid_amount_rules_and_conflicting_flags(
                                 category="基金>宽基指数", fundb_daily_buy=legacy_flag,
                                 daily_buy_amount=amount)
     assert not output.parent.exists()
+
+
+def test_explicit_batch_authorization_preserves_hash_gate_without_claiming_curve_review(
+        reviewed_snapshot, tmp_path, monkeypatch):
+    monkeypatch.setattr(backtest_single_fund, "render_portfolio_report", lambda *args, **kwargs: None)
+    payload = backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "batch" / "report",
+                                     batch_authorized=True, daily_buy_amount=10)
+    assert payload["metadata"]["curve_confirmed_by_user"] is False
+    assert payload["metadata"]["batch_authorized_by_user"] is True
+    assert "曲线经用户确认" not in "\n".join(payload["metadata"]["assumptions"])
+    reviewed_snapshot.write_text(reviewed_snapshot.read_text().replace("0.85", "0.86"))
+    with pytest.raises(ValueError, match="previously reviewed"):
+        backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "tampered" / "report",
+                                batch_authorized=True, daily_buy_amount=10)
