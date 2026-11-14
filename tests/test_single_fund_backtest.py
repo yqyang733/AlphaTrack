@@ -1,6 +1,7 @@
 """Review gates, calendar boundaries and explicit single-fund rule overrides."""
 import hashlib
 import json
+import shutil
 
 import pandas as pd
 import pytest
@@ -269,7 +270,7 @@ def test_daily_fundg_amount_buys_high_positions_without_changing_default(
     ("Fundg", True, False), ("Fundg", False, False),
     ("Fundg", float("nan"), False), ("Fundg", float("inf"), False),
     ("Fundg", float("-inf"), False),
-    ("Fundd", 10, False), ("Fundf_1", 10, False), ("Fundc", 10, False),
+    ("Fundd", 10, False), ("Fundf_1", 10, False), ("Fundc", 0, False),
     ("Fundb", 40, True),
 ])
 def test_daily_amount_rejects_invalid_amount_rules_and_conflicting_flags(
@@ -303,3 +304,62 @@ def test_explicit_batch_authorization_preserves_hash_gate_without_claiming_curve
     with pytest.raises(ValueError, match="previously reviewed"):
         backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "tampered" / "report",
                                 batch_authorized=True, daily_buy_amount=10)
+
+
+def test_fundc_requires_override_and_daily40_never_calls_ranking(
+        reviewed_daily_bond_snapshot, tmp_path, monkeypatch):
+    path = reviewed_daily_bond_snapshot.with_suffix(".metadata.json")
+    metadata = json.loads(path.read_text())
+    metadata["requested_strategy"] = "Fundc"
+    path.write_text(json.dumps(metadata))
+    with pytest.raises(ValueError, match="no ranking peer universe"):
+        backtest_single_fund.run(reviewed_daily_bond_snapshot, "Fundc", tmp_path / "denied",
+                                batch_authorized=True)
+
+    def forbidden_signals(*args, **kwargs):
+        pytest.fail("Single-fund daily40 must not use Fundc ranking signals")
+
+    monkeypatch.setattr(QLabRules, "build_signals", forbidden_signals)
+    monkeypatch.setattr(backtest_single_fund, "render_portfolio_report", lambda *args, **kwargs: None)
+    prefix = tmp_path / "fundc_daily40"
+    result = backtest_single_fund.run(reviewed_daily_bond_snapshot, "Fundc", prefix,
+                                     batch_authorized=True, daily_buy_amount=40)
+    trades = pd.read_csv(prefix.with_suffix(".trades.csv"), parse_dates=["date"])
+    filled = trades[trades.status == "FILLED"]
+    assert len(filled) == 4 and filled.amount.eq(40).all()
+    assert filled.date.dt.dayofweek.lt(5).all()
+    assert result["summary"]["total_contributions"] == 160
+    assert result["summary"]["sell_count"] == 0
+    assert result["metadata"]["types"] == ["Fundc"]
+    assert result["metadata"]["user_rule_override"]["ranking"] is False
+
+
+def test_explicit_qlab_source_records_its_commit_and_rejects_changed_rules(
+        reviewed_snapshot, tmp_path, monkeypatch):
+    source = tmp_path / "latest_qlab"
+    shutil.copytree(backtest_single_fund.ROOT / "vendor/qlab", source)
+    rules = QLabRules(source)
+    path = reviewed_snapshot.with_suffix(".metadata.json")
+    metadata = json.loads(path.read_text())
+    metadata.update(qlab_rule_hashes=rules.source_hashes, qlab_catalog_commit="f" * 40)
+    path.write_text(json.dumps(metadata))
+    monkeypatch.setattr(backtest_single_fund, "render_portfolio_report", lambda *args, **kwargs: None)
+    result = backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "latest_result",
+                                     batch_authorized=True, daily_buy_amount=10, qlab_source=source)
+    assert result["metadata"]["qlab_commit"] == "f" * 40
+    assert result["metadata"]["source_commit"] == "f" * 40
+    assert result["metadata"]["qlab_source_path"] == str(source)
+    changed = source / "configs/trading/Fundf_1.json"
+    changed.write_text(changed.read_text().replace('"fundf1_base_amount": 40', '"fundf1_base_amount": 80'))
+    with pytest.raises(ValueError, match="Pinned QLab rules changed"):
+        backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "changed_result",
+                                batch_authorized=True, daily_buy_amount=10, qlab_source=source)
+    assert not (tmp_path / "changed_result.summary.json").exists()
+
+
+def test_explicit_qlab_source_requires_hash_provenance(reviewed_snapshot, tmp_path, monkeypatch):
+    source = tmp_path / "unpinned_qlab"
+    shutil.copytree(backtest_single_fund.ROOT / "vendor/qlab", source)
+    with pytest.raises(ValueError, match="requires pinned rule hashes"):
+        backtest_single_fund.run(reviewed_snapshot, "Fundg", tmp_path / "denied",
+                                batch_authorized=True, daily_buy_amount=10, qlab_source=source)

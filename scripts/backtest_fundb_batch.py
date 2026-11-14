@@ -65,7 +65,7 @@ def download(asset, directory):
             time.sleep(attempt + 1)
 
 
-def prepare(asset, source, directory, commit):
+def prepare(asset, source, directory, commit, *, qlab_source=None, authorization=None):
     code = asset["code"]
     folder = directory / code
     nav_text = (folder / "nav.js").read_text(encoding="utf-8-sig")
@@ -98,7 +98,7 @@ def prepare(asset, source, directory, commit):
     path = folder / f"{code}.csv"
     frame.to_csv(path, index=False, float_format="%.15g")
     normalized, _ = load_data(path)
-    rules = QLabRules(ROOT / "vendor/qlab")
+    rules = QLabRules(qlab_source or ROOT / "vendor/qlab")
     if sha(source / "core/calculator.py") != rules.source_hashes["core/calculator.py"]:
         raise ValueError("Latest QLab calculator differs from pinned calculator")
     reference = rules.calculator.ReturnCalculator.calculate_return_with_dividend_reinvest(
@@ -116,16 +116,25 @@ def prepare(asset, source, directory, commit):
     for gap in large_gaps:
         warnings.append(f"净值数据存在长缺口：{gap['before']}至{gap['after']}；无净值日不产生买入，未补造数据。")
     meta = dict(code=code, name=asset["name"], source_name=extract(nav_text, "fS_name"),
-        requested_strategy="Fundb", stage="batch_authorized", source_kind="qlab_snapshot",
+        requested_strategy=asset.get("asset_type", "Fundb"), stage="batch_authorized", source_kind="qlab_snapshot",
         rows=len(frame), first_date=frame.date.iloc[0], last_date=frame.date.iloc[-1],
         cash_dividend_count=int((frame.dividend > 0).sum()), split_count=int((frame.split != 1).sum()),
         qlab_max_absolute_error=error, data_sha256=sha(path),
         calculator_sha256=rules.source_hashes["core/calculator.py"], qlab_catalog_commit=commit,
+        qlab_rule_hashes=dict(rules.source_hashes),
         sources={"nav.js": nav_source, "dividends.csv": {"path": str(original), "sha256": sha(copied)},
                  "catalog": {"path": str(source / "data_files/Fund"), "sha256": sha(source / "data_files/Fund")}},
         existing_policy_omissions=omissions, warnings=warnings, large_nav_gaps=large_gaps,
         curve_basis="QLab ex-date yuan/share reinvestment and normalized splits; exact QLab event snapshot",
-        authorization="用户要求最新QLab Fundb全部逐只每日40元直接回测，排除003358与161119")
+        authorization=authorization or "用户要求最新QLab Fundb全部逐只每日40元直接回测，排除003358与161119")
+    refresh_path = folder / "dividend_refresh.json"
+    if refresh_path.exists():
+        refresh = json.loads(refresh_path.read_text())
+        if refresh["merged_sha256"] != sha(copied):
+            raise ValueError("Dividend refresh fingerprint mismatch")
+        meta["dividend_refresh"] = refresh
+        for addition in refresh["additions"]:
+            meta["warnings"].append(f"采用QLab原分红合并逻辑更新临时快照：补入已核实的 {addition['date']} {addition['type']} {addition['value']} 元/份；原始仓库记录及来源页面均保留。")
     path.with_suffix(".metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2))
     return meta
 

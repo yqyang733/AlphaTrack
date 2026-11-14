@@ -61,7 +61,7 @@ def export_tables(output, annual, summary, warnings=()):
 
 
 def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=False, category=None,
-        fundb_daily_buy=False, daily_buy_amount=None, batch_authorized=False):
+        fundb_daily_buy=False, daily_buy_amount=None, batch_authorized=False, qlab_source=None):
     if not curve_confirmed and not batch_authorized:
         raise ValueError("User must confirm this snapshot's curve before backtesting")
     if fundb_daily_buy and rule != "Fundb":
@@ -71,13 +71,13 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
     if daily_buy_amount is not None:
         if isinstance(daily_buy_amount, bool) or not isinstance(daily_buy_amount, (int, float)) or not np.isfinite(daily_buy_amount) or daily_buy_amount <= 0:
             raise ValueError("daily_buy_amount must be finite and positive")
-        if rule not in {"Fundb", "Fundg"}:
-            raise ValueError("daily_buy_amount supports only explicitly selected Fundb or Fundg snapshots")
+        if rule not in {"Fundb", "Fundc", "Fundg"}:
+            raise ValueError("daily_buy_amount supports only explicitly selected Fundb, Fundc or Fundg snapshots")
     fixed_amount = 40 if fundb_daily_buy else daily_buy_amount
     daily_fixed = fixed_amount is not None
-    if rule == "Fundb" and not daily_fixed:
-        raise ValueError("Single-fund Fundb requires explicit fundb_daily_buy; no ranking peer universe was supplied")
-    if rule not in {"Fundb", "Fundd", "Fundf_1", "Fundg"}:
+    if rule in {"Fundb", "Fundc"} and not daily_fixed:
+        raise ValueError(f"Single-fund {rule} requires an explicit fixed daily purchase; no ranking peer universe was supplied")
+    if rule not in {"Fundb", "Fundc", "Fundd", "Fundf_1", "Fundg"}:
         raise ValueError("Fundb/Fundc require an explicitly defined ranking peer universe")
     data, output = Path(data).resolve(), Path(output).resolve()
     frame, source_meta = load_data(data)
@@ -91,8 +91,18 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
         raise ValueError("Data must match the previously reviewed QLab-compatible curve")
     if source_meta.get("requested_strategy") != rule:
         raise ValueError("Selected rule differs from the reviewed request")
-    rules = QLabRules(ROOT / "vendor/qlab")
-    provenance = json.loads((ROOT / "vendor/qlab/PROVENANCE.json").read_text())
+    default_source = (ROOT / "vendor/qlab").resolve()
+    source = Path(qlab_source).resolve() if qlab_source is not None else default_source
+    rules = QLabRules(source)
+    if source == default_source:
+        provenance = json.loads((default_source / "PROVENANCE.json").read_text())
+    else:
+        expected_hashes = source_meta.get("qlab_rule_hashes")
+        commit = source_meta.get("qlab_catalog_commit")
+        if not isinstance(expected_hashes, dict) or not isinstance(commit, str) or len(commit) != 40 or any(c not in "0123456789abcdef" for c in commit):
+            raise ValueError("Explicit QLab source requires pinned rule hashes and a full catalog commit")
+        provenance = dict(files=expected_hashes, commit=commit,
+                          repository="https://github.com/yqyang733/QLab")
     for relative, value in rules.source_hashes.items():
         if provenance["files"].get(relative) != value:
             raise ValueError(f"Pinned QLab rules changed: {relative}")
@@ -175,6 +185,7 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
                     approved_curve_data_sha256=digest, data_hashes={asset["code"]: digest},
                     qlab_commit=provenance["commit"], source_commit=provenance["commit"],
                     qlab_catalog_commit=source_meta.get("qlab_catalog_commit"),
+                    qlab_source_path=str(source), qlab_rule_hashes=rules.source_hashes,
                     source_url=provenance["repository"], coverage=[source_meta],
                     signal_metadata=signal_metadata, assumptions=assumptions,
                     warnings=source_meta.get("warnings", []),
@@ -210,7 +221,7 @@ def run(data, rule, output, *, start="2010-01-01", end=None, curve_confirmed=Fal
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", required=True, type=Path)
-    parser.add_argument("--rule", required=True, choices=["Fundb", "Fundd", "Fundf_1", "Fundg"])
+    parser.add_argument("--rule", required=True, choices=["Fundb", "Fundc", "Fundd", "Fundf_1", "Fundg"])
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--start", default="2010-01-01")
     parser.add_argument("--end")
@@ -218,8 +229,9 @@ if __name__ == "__main__":
     parser.add_argument("--curve-confirmed", action="store_true", help="Use only after the user confirms this exact snapshot's curve")
     parser.add_argument("--batch-authorized", action="store_true", help="User explicitly requested direct batch execution with QLab-compatible data")
     parser.add_argument("--fundb-daily-buy", action="store_true", help="User-specified single-fund Fundb: 40 yuan each weekday NAV, no ranking or sales")
-    parser.add_argument("--daily-buy-amount", type=float, help="Explicit fixed daily purchase amount, replacing the selected Fundb/Fundg entry conditions")
+    parser.add_argument("--daily-buy-amount", type=float, help="Explicit fixed daily purchase amount, replacing the selected Fundb/Fundc/Fundg entry conditions")
+    parser.add_argument("--qlab-source", type=Path, help="Explicit QLab source matching snapshot rule hashes and commit; default frozen vendor")
     args = parser.parse_args()
     run(args.data, args.rule, args.output, start=args.start, end=args.end,
         curve_confirmed=args.curve_confirmed, category=args.category, fundb_daily_buy=args.fundb_daily_buy,
-        daily_buy_amount=args.daily_buy_amount, batch_authorized=args.batch_authorized)
+        daily_buy_amount=args.daily_buy_amount, batch_authorized=args.batch_authorized, qlab_source=args.qlab_source)

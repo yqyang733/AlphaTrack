@@ -78,6 +78,19 @@ python scripts/verify_single_fundb_daily.py --data data/fundb_batch/20261112/110
 
 汇总文件 `fundb_daily40.tsv` / `.md` 按清单顺序输出策略、本金、盈亏、XIRR、TWR、风险指标及2010至截止年每年盈亏，金额万元；每只保留完整账本和曲线。审计支持 `--start` / `--end`，默认起点2010且截止取现有报告，起点前只预热基准曲线、不投入。分红使用QLab除息日元/份口径；仅000931既有两笔缺净值事件沿用原QLab处理，并保留原记录与警告；陌生缺口分红拒绝执行。缺净值日期不补造买入，周末只估值。原始数据与报告均不上传GitHub。
 
+### Fundc / Fundf_1 / Fundd 分类型逐只回测
+
+Fundc按用户明确覆盖，每个有净值的工作日发出40元买入，下一可执行净值成交，不排名、不卖出。Fundf_1和Fundd直接调用固定版本QLab原规则；Fundd按清单资产类别保留宽基50元、其他10元的基数及原分档卖出。三类共用全部所选基金最新可用日期的较早者，2010前只预热，分红按除息日再投，卖出回款取出，费用0。
+
+```bash
+python scripts/backtest_rule_batch.py --qlab-source /path/to/temporary-QLab-checkout --qlab-commit <exact-commit> --snapshot-dir data/rule_batch/20261114 --output-dir reports/rule_batch_20261114 --batch-authorized --refresh-dividends-on-new-event
+python scripts/verify_single_rule_batch.py --qlab-source /path/to/temporary-QLab-checkout --reports-dir reports/rule_batch_20261114
+```
+
+可加 `--types Fundc` 或 `--types Fundf_1 Fundd`，`--prepare-only` 只准备，`--from-snapshot` 使用本地冻结数据；三张表分别在 `Fundc/Fundc.tsv`、`Fundf_1/Fundf_1.tsv`、`Fundd/Fundd.tsv`（同时提供Markdown），每只保留完整报告。`--qlab-source` 的规则文件逐一匹配快照哈希，报告记录实际源码提交，旧vendor模式兼容不变。
+
+默认拒绝净值中出现但QLab分红CSV未记录的事件。显式 `--refresh-dividends-on-new-event` 从同源分红页核实事件，调用该QLab版本的 `data.dividends.merge_records` 保留原值、拒绝冲突，并仅更新**临时QLab副本**；保存原CSV、HTML、哈希、增加记录和合并记录。2026-11-14批次按此补齐012708在11-09每份0.004元、007605在11-13每份0.014元两笔新分红。离线重放需保留该临时副本或按快照记录重建已合并的分红CSV，不修改原Macro工作目录。独立审计直接用QLab原calculator/TradingEngine重建规则信号，并独立核对Decimal账本、FIFO、年度、XIRR/TWR及图表。
+
 096001 的用户确认例外仅为 **2015-01-19 每份0.0187元现金分红**：该除息日缺净值，本次暂不计入，其余12笔正常处理。`configs/096001_fundg_omissions.json` 保存这项明确授权；处理器逐项匹配基金、日期、类型、金额，只允许省略缺少除息日净值的指定事件。如果日后补齐该日真实净值，旧例外会拒绝执行，须重新核对曲线。原始13笔记录继续保留，报告展示该项说明。
 
 ```bash
